@@ -109,4 +109,9 @@ class User extends Authenticatable
             default      => User::where('type', 'Technician'),
         };
     }
+
+    public function routes(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Route::class);
+    }
 }

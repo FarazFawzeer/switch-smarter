@@ -16,8 +16,12 @@ class ElevatorUnit extends Model
         'elevator_type',
         'brand',
         'model',
+        'custom_fields',
     ];
 
+    protected $casts = [
+        'custom_fields' => 'array',
+    ];
     public function contract(): BelongsTo
     {
         return $this->belongsTo(Contract::class);

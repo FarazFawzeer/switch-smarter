@@ -11,37 +11,33 @@
             </div>
             <span class="badge badge-soft-success">Scheduled</span>
         </div>
-        <div class="row mb-3">
-    <div class="col-md-4">
-        <span class="text-muted small">Engineer</span>
-        <p class="mb-0">{{ optional($contract->engineer)->name ?? '—' }}</p>
-    </div>
-    <div class="col-md-4">
-        <span class="text-muted small">Supervisor</span>
-        <p class="mb-0">{{ optional($contract->supervisor)->name ?? '—' }}</p>
-    </div>
-    <div class="col-md-4">
-        <span class="text-muted small">Default Technician</span>
-        <p class="mb-0">{{ optional($contract->technician)->name ?? '—' }}</p>
-    </div>
-</div>
         <div class="card-body">
             <div class="row mb-4">
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <span class="text-muted small">Engineer</span>
+                    <p class="mb-0">{{ optional($contract->engineer)->name ?? '—' }}</p>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted small">Supervisor</span>
+                    <p class="mb-0">{{ optional($contract->supervisor)->name ?? '—' }}</p>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted small">Route</span>
+                    <p class="mb-0">{{ optional($contract->route)->route_no ?? '—' }}</p>
+                </div>
+                <div class="col-md-3">
                     <span class="text-muted small">PPM Start Date</span>
                     <p class="mb-0">{{ $contract->ppm_start_date->format('d M Y') }}</p>
                 </div>
-                <div class="col-md-4">
-                    <span class="text-muted small">Total Visits Scheduled</span>
-                    <p class="mb-0">{{ $contract->ppmJobs->count() }}</p>
-                </div>
-                <div class="col-md-4">
-                    <span class="text-muted small">Next Upcoming Visit</span>
-                    <p class="mb-0">
-                        {{ optional($contract->ppmJobs->where('status', 'pending')->first())->scheduled_date?->format('d M Y') ?? '—' }}
-                    </p>
-                </div>
             </div>
+            @if ($contract->renewals->count())
+                <div class="alert alert-info d-flex align-items-center gap-2 mb-4">
+                    <iconify-icon icon="solar:refresh-outline" style="font-size: 18px;"></iconify-icon>
+                    This contract has been renewed {{ $contract->renewals->count() }} time(s).
+                    Latest renewal: {{ $contract->renewals->first()->new_start_date->format('d M Y') }} –
+                    {{ $contract->renewals->first()->new_end_date->format('d M Y') }}.
+                </div>
+            @endif
 
             <div class="table-responsive">
                 <table class="table table-hover table-centered">
@@ -54,14 +50,14 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($contract->ppmJobs as $index => $job)
+                        @foreach ($contract->ppmJobs as $index => $job)
                             <tr>
                                 <td>{{ $index + 1 }}</td>
                                 <td>{{ $job->scheduled_date->format('d M Y') }}</td>
                                 <td>{{ optional($job->technician)->name ?? 'Unassigned' }}</td>
                                 <td>
                                     @php
-                                        $statusClass = match($job->status) {
+                                        $statusClass = match ($job->status) {
                                             'completed' => 'badge-soft-success',
                                             'in_progress' => 'badge-soft-info',
                                             'overdue' => 'badge-soft-danger',
@@ -69,7 +65,8 @@
                                             default => 'badge-soft-warning',
                                         };
                                     @endphp
-                                    <span class="badge {{ $statusClass }}">{{ ucfirst(str_replace('_', ' ', $job->status)) }}</span>
+                                    <span
+                                        class="badge {{ $statusClass }}">{{ ucfirst(str_replace('_', ' ', $job->status)) }}</span>
                                 </td>
                             </tr>
                         @endforeach

@@ -10,30 +10,26 @@ use Carbon\Carbon;
 
 class Contract extends Model
 {
-    protected $fillable = [
-        'project_name',
-        'location',
-        'contract_number',
-        'number_of_elevators',
-        'contract_start_date',
-        'contract_end_date',
-        'ppm_start_date',
-        'is_scheduled',
-        'route_no',
-        'assigned_engineer_id',
-        'assigned_supervisor_id',
-        'assigned_technician_id',
-        'status',
-        'contract_document',
-        'created_by',
-    ];
+   protected $fillable = [
+    'project_name', 'project_type', 'location', 'contract_number', 'number_of_elevators',
+    'contract_start_date', 'contract_end_date', 'ppm_start_date', 'is_scheduled',
+    'route_id', 'assigned_engineer_id', 'assigned_supervisor_id', 'assigned_technician_id',
+    'status', 'contract_document', 'custom_fields', 'created_by',
+];
 
-    protected $casts = [
-        'contract_start_date' => 'date',
-        'contract_end_date'   => 'date',
-        'ppm_start_date'      => 'date',
-        'is_scheduled'        => 'boolean',
-    ];
+
+protected $casts = [
+    'contract_start_date' => 'date',
+    'contract_end_date'   => 'date',
+    'ppm_start_date'      => 'date',
+    'is_scheduled'        => 'boolean',
+    'custom_fields'       => 'array',
+];
+
+public function renewals(): \Illuminate\Database\Eloquent\Relations\HasMany
+{
+    return $this->hasMany(ContractRenewal::class)->latest();
+}
 
     public function creator(): BelongsTo
     {
@@ -86,21 +82,26 @@ class Contract extends Model
     }
 
     public function scopeVisibleTo(Builder $query, User $user): Builder
-{
-    return match ($user->type) {
-        'Engineer'   => $query->where('assigned_engineer_id', $user->id),
-        'Supervisor' => $query->where('assigned_supervisor_id', $user->id),
-        default      => $query,
-    };
-}
+    {
+        return match ($user->type) {
+            'Engineer'   => $query->where('assigned_engineer_id', $user->id),
+            'Supervisor' => $query->where('assigned_supervisor_id', $user->id),
+            default      => $query,
+        };
+    }
 
     public function supervisor(): BelongsTo
-{
-    return $this->belongsTo(User::class, 'assigned_supervisor_id');
-}
+    {
+        return $this->belongsTo(User::class, 'assigned_supervisor_id');
+    }
 
-public function technician(): BelongsTo
-{
-    return $this->belongsTo(User::class, 'assigned_technician_id');
-}
+    public function technician(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_technician_id');
+    }
+
+    public function route(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Route::class);
+    }
 }

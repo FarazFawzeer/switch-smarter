@@ -70,14 +70,14 @@
             </li>
 
 
-            {{-- <li class="nav-item">
+            <li class="nav-item">
                 <a class="nav-link" href="{{ route('admin.scheduling.index') }}">
                     <span class="nav-icon">
                         <iconify-icon icon="solar:calendar-mark-outline"></iconify-icon>
                     </span>
                     <span class="nav-text"> Scheduling</span>
                 </a>
-            </li> --}}
+            </li>
 
             {{-- <li class="nav-item">
                 <a class="nav-link menu-arrow" href="#sidebarSites" data-bs-toggle="collapse" role="button"

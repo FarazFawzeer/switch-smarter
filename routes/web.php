@@ -35,6 +35,10 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     // AMC contracts
     Route::resource('contracts', ContractController::class);
 
+    Route::get('contracts/{contract}/renew', [ContractController::class, 'renewForm'])->name('contracts.renew.form');
+    Route::post('contracts/{contract}/renew', [ContractController::class, 'renew'])->name('contracts.renew.store');
+    Route::post('contracts/{contract}/import-units', [ContractController::class, 'importElevatorUnits'])->name('contracts.units.import');
+
     Route::resource('sites', SiteController::class);
 
     Route::resource('jobs', JobController::class);
@@ -49,16 +53,12 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
-    Route::prefix('scheduling')->name('scheduling.')->group(function () {
-        Route::get('/', [ContractSchedulingController::class, 'index'])->name('index');
-
-        Route::get('/{contract}/assign-supervisor', [ContractSchedulingController::class, 'assignSupervisorForm'])->name('assign-supervisor.form');
-        Route::post('/{contract}/assign-supervisor', [ContractSchedulingController::class, 'assignSupervisor'])->name('assign-supervisor.store');
-
-        Route::get('/{contract}/create', [ContractSchedulingController::class, 'create'])->name('create');
-        Route::post('/{contract}', [ContractSchedulingController::class, 'store'])->name('store');
-        Route::get('/{contract}', [ContractSchedulingController::class, 'show'])->name('show');
-    });
+ Route::prefix('scheduling')->name('scheduling.')->group(function () {
+    Route::get('/', [ContractSchedulingController::class, 'index'])->name('index');
+    Route::get('/{contract}/create', [ContractSchedulingController::class, 'create'])->name('create');
+    Route::post('/{contract}', [ContractSchedulingController::class, 'store'])->name('store');
+    Route::get('/{contract}', [ContractSchedulingController::class, 'show'])->name('show');
+});
 });
 
 Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {

@@ -1,7 +1,7 @@
-@extends('layouts.vertical', ['subtitle' => 'PPM Scheduling'])
 
-@section('content')
-    @include('layouts.partials.page-title', ['title' => 'Scheduling', 'subtitle' => 'PPM Scheduling'])
+
+<?php $__env->startSection('content'); ?>
+    <?php echo $__env->make('layouts.partials.page-title', ['title' => 'Scheduling', 'subtitle' => 'PPM Scheduling'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <style>
         .sc-card { border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(15,42,67,0.06); }
@@ -36,33 +36,33 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('admin.scheduling.index') }}" id="filterForm" class="row g-2 mb-3 justify-content-end align-items-end">
+    <form method="GET" action="<?php echo e(route('admin.scheduling.index')); ?>" id="filterForm" class="row g-2 mb-3 justify-content-end align-items-end">
         <div class="col-auto">
             <input type="text" name="search" id="searchInput" class="form-control" style="width: 220px;"
-                placeholder="Search by project or location..." value="{{ request('search') }}">
+                placeholder="Search by project or location..." value="<?php echo e(request('search')); ?>">
         </div>
         <div class="col-auto">
             <select name="engineer_id" class="form-select filter-auto" style="width: 180px;">
                 <option value="">All Engineers</option>
-                @foreach($engineers as $engineer)
-                    <option value="{{ $engineer->id }}" {{ request('engineer_id') == $engineer->id ? 'selected' : '' }}>{{ $engineer->name }}</option>
-                @endforeach
+                <?php $__currentLoopData = $engineers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $engineer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <option value="<?php echo e($engineer->id); ?>" <?php echo e(request('engineer_id') == $engineer->id ? 'selected' : ''); ?>><?php echo e($engineer->name); ?></option>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </select>
         </div>
         <div class="col-auto">
             <select name="scheduled" class="form-select filter-auto" style="width: 160px;">
                 <option value="">All Statuses</option>
-                <option value="yes" {{ request('scheduled') == 'yes' ? 'selected' : '' }}>Scheduled</option>
-                <option value="no" {{ request('scheduled') == 'no' ? 'selected' : '' }}>Not Scheduled</option>
+                <option value="yes" <?php echo e(request('scheduled') == 'yes' ? 'selected' : ''); ?>>Scheduled</option>
+                <option value="no" <?php echo e(request('scheduled') == 'no' ? 'selected' : ''); ?>>Not Scheduled</option>
             </select>
         </div>
-        @if(request()->hasAny(['search', 'engineer_id', 'scheduled']))
+        <?php if(request()->hasAny(['search', 'engineer_id', 'scheduled'])): ?>
             <div class="col-auto">
-                <a href="{{ route('admin.scheduling.index') }}" class="btn btn-outline-secondary" title="Clear filters">
+                <a href="<?php echo e(route('admin.scheduling.index')); ?>" class="btn btn-outline-secondary" title="Clear filters">
                     <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
                 </a>
             </div>
-        @endif
+        <?php endif; ?>
     </form>
 
     <div class="card sc-card">
@@ -80,63 +80,66 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($contracts as $contract)
+                    <?php $__empty_1 = true; $__currentLoopData = $contracts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $contract): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <tr>
                             <td>
-                                <a href="{{ route('admin.contracts.show', $contract->id) }}" class="fw-semibold text-dark text-decoration-none">
-                                    {{ $contract->project_name }}
+                                <a href="<?php echo e(route('admin.contracts.show', $contract->id)); ?>" class="fw-semibold text-dark text-decoration-none">
+                                    <?php echo e($contract->project_name); ?>
+
                                 </a>
                                 <div class="text-muted" style="font-size:12px;">
-                                    {{ $contract->location }}
-                                    @if($contract->renewals->count())
-                                        <span class="sc-badge-renewed">Renewed {{ $contract->renewals->count() }}x</span>
-                                    @endif
+                                    <?php echo e($contract->location); ?>
+
+                                    <?php if($contract->renewals->count()): ?>
+                                        <span class="sc-badge-renewed">Renewed <?php echo e($contract->renewals->count()); ?>x</span>
+                                    <?php endif; ?>
                                 </div>
                             </td>
-                            <td>{{ optional($contract->engineer)->name ?? '—' }}</td>
+                            <td><?php echo e(optional($contract->engineer)->name ?? '—'); ?></td>
                             <td>
-                                @if($contract->route)
-                                    <span class="badge badge-soft-secondary">{{ $contract->route->route_no }}</span>
-                                @else
+                                <?php if($contract->route): ?>
+                                    <span class="badge badge-soft-secondary"><?php echo e($contract->route->route_no); ?></span>
+                                <?php else: ?>
                                     <span class="sc-chain-empty">Not set</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
-                            <td>{{ optional($contract->supervisor)->name ?? '—' }}</td>
-                            <td>{{ optional($contract->technician)->name ?? '—' }}</td>
+                            <td><?php echo e(optional($contract->supervisor)->name ?? '—'); ?></td>
+                            <td><?php echo e(optional($contract->technician)->name ?? '—'); ?></td>
                             <td>
-                                @if($contract->is_scheduled)
+                                <?php if($contract->is_scheduled): ?>
                                     <span class="sc-pill scheduled">Scheduled</span>
-                                @else
+                                <?php else: ?>
                                     <span class="sc-pill pending">Not Scheduled</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
                             <td class="text-center">
-                                @if($contract->is_scheduled)
-                                    <a href="{{ route('admin.scheduling.show', $contract->id) }}" class="btn btn-sm btn-outline-primary">
+                                <?php if($contract->is_scheduled): ?>
+                                    <a href="<?php echo e(route('admin.scheduling.show', $contract->id)); ?>" class="btn btn-sm btn-outline-primary">
                                         View
                                     </a>
-                                @else
-                                    <a href="{{ route('admin.scheduling.create', $contract->id) }}" class="btn btn-sm btn-primary">
+                                <?php else: ?>
+                                    <a href="<?php echo e(route('admin.scheduling.create', $contract->id)); ?>" class="btn btn-sm btn-primary">
                                         Schedule
                                     </a>
-                                @endif
+                                <?php endif; ?>
                             </td>
                         </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="7" class="text-center text-muted py-5">
                                 <iconify-icon icon="solar:calendar-mark-outline" style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                                 <p class="mb-0 mt-2">No active projects found.</p>
                             </td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 
     <div class="d-flex justify-content-end mt-2">
-        {{ $contracts->links() }}
+        <?php echo e($contracts->links()); ?>
+
     </div>
 
     <script>
@@ -154,4 +157,5 @@
             }, 600);
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.vertical', ['subtitle' => 'PPM Scheduling'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\Personal Projects\Elevator\switch-smarter\resources\views/admin/scheduling/index.blade.php ENDPATH**/ ?>

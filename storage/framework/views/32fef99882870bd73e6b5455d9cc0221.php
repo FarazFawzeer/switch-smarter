@@ -1,9 +1,9 @@
-@extends('layouts.vertical', ['subtitle' => 'Projects'])
 
-@section('content')
-    @include('layouts.partials.page-title', ['title' => 'Contracts', 'subtitle' => 'Projects'])
 
- @php
+<?php $__env->startSection('content'); ?>
+    <?php echo $__env->make('layouts.partials.page-title', ['title' => 'Contracts', 'subtitle' => 'Projects'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+
+ <?php
     $typeColorMap = [
         'Residential' => '#2E5AAC',  // blue
         'Commercial'  => '#17A2B8',  // teal
@@ -15,7 +15,7 @@
     function typeColor($type, $map) {
         return $map[$type] ?? '#56606f'; // fallback slate for unrecognized/custom types
     }
-@endphp
+?>
 
     <style>
         .ct-stat-card {
@@ -206,7 +206,7 @@
      
     </style>
 
-    {{-- Quick status strip --}}
+    
     <div class="row g-3 mb-3">
         <div class="col-6 col-md-3">
             <div class="card ct-stat-card">
@@ -215,7 +215,7 @@
                         <iconify-icon icon="solar:buildings-outline"></iconify-icon>
                     </div>
                     <div>
-                        <div class="fw-bold" style="font-size:20px; color:#16233b;">{{ $contracts->total() }}</div>
+                        <div class="fw-bold" style="font-size:20px; color:#16233b;"><?php echo e($contracts->total()); ?></div>
                         <div class="small text-muted">Total Projects</div>
                     </div>
                 </div>
@@ -229,7 +229,7 @@
                     </div>
                     <div>
                         <div class="fw-bold" style="font-size:20px; color:#16233b;">
-                            {{ $contracts->where('status', 'active')->count() }}</div>
+                            <?php echo e($contracts->where('status', 'active')->count()); ?></div>
                         <div class="small text-muted">Active</div>
                     </div>
                 </div>
@@ -243,7 +243,7 @@
                     </div>
                     <div>
                         <div class="fw-bold" style="font-size:20px; color:#16233b;">
-                            {{ $contracts->where('status', 'expired')->count() }}</div>
+                            <?php echo e($contracts->where('status', 'expired')->count()); ?></div>
                         <div class="small text-muted">Expired</div>
                     </div>
                 </div>
@@ -257,7 +257,7 @@
                     </div>
                     <div>
                         <div class="fw-bold" style="font-size:20px; color:#16233b;">
-                            {{ $contracts->where('status', 'cancelled')->count() }}</div>
+                            <?php echo e($contracts->where('status', 'cancelled')->count()); ?></div>
                         <div class="small text-muted">Cancelled</div>
                     </div>
                 </div>
@@ -265,53 +265,53 @@
         </div>
     </div>
 
-    {{-- Toolbar: view toggle + search + New Project --}}
-    <form method="GET" action="{{ route('admin.contracts.index') }}" id="filterForm" class="row g-2 mb-3 align-items-end">
+    
+    <form method="GET" action="<?php echo e(route('admin.contracts.index')); ?>" id="filterForm" class="row g-2 mb-3 align-items-end">
         <div class="col-auto">
             <div class="ct-view-toggle d-flex">
-                <a href="{{ request()->fullUrlWithQuery(['view' => 'grid']) }}"
-                    class="{{ $view === 'grid' ? 'active' : '' }}">
+                <a href="<?php echo e(request()->fullUrlWithQuery(['view' => 'grid'])); ?>"
+                    class="<?php echo e($view === 'grid' ? 'active' : ''); ?>">
                     <iconify-icon icon="solar:widget-outline"></iconify-icon> Grid
                 </a>
-                <a href="{{ request()->fullUrlWithQuery(['view' => 'list']) }}"
-                    class="{{ $view === 'list' ? 'active' : '' }}">
+                <a href="<?php echo e(request()->fullUrlWithQuery(['view' => 'list'])); ?>"
+                    class="<?php echo e($view === 'list' ? 'active' : ''); ?>">
                     <iconify-icon icon="solar:list-outline"></iconify-icon> List
                 </a>
             </div>
         </div>
-        <input type="hidden" name="view" value="{{ $view }}">
+        <input type="hidden" name="view" value="<?php echo e($view); ?>">
         <div class="col-auto">
             <input type="text" name="search" id="searchInput" class="form-control" style="width: 220px;"
-                placeholder="Search by project, location..." value="{{ request('search') }}" form="filterForm">
+                placeholder="Search by project, location..." value="<?php echo e(request('search')); ?>" form="filterForm">
         </div>
-        @if ($view === 'grid')
+        <?php if($view === 'grid'): ?>
             <div class="col-auto">
                 <select name="status" class="form-select filter-auto" style="width: 150px;" form="filterForm">
                     <option value="">All Statuses</option>
-                    <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
-                    <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }}>Expired</option>
-                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                    <option value="active" <?php echo e(request('status') == 'active' ? 'selected' : ''); ?>>Active</option>
+                    <option value="expired" <?php echo e(request('status') == 'expired' ? 'selected' : ''); ?>>Expired</option>
+                    <option value="cancelled" <?php echo e(request('status') == 'cancelled' ? 'selected' : ''); ?>>Cancelled</option>
                 </select>
             </div>
-        @endif
-        @if (request()->hasAny(['search', 'status', 'project_type', 'engineer_id', 'route_id']))
+        <?php endif; ?>
+        <?php if(request()->hasAny(['search', 'status', 'project_type', 'engineer_id', 'route_id'])): ?>
             <div class="col-auto">
-                <a href="{{ route('admin.contracts.index') }}?view={{ $view }}" class="btn btn-outline-secondary"
+                <a href="<?php echo e(route('admin.contracts.index')); ?>?view=<?php echo e($view); ?>" class="btn btn-outline-secondary"
                     title="Clear filters">
                     <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
                 </a>
             </div>
-        @endif
+        <?php endif; ?>
         <div class="col-auto ms-auto">
-            <a href="{{ route('admin.contracts.create') }}" class="btn btn-primary">
+            <a href="<?php echo e(route('admin.contracts.create')); ?>" class="btn btn-primary">
                 <iconify-icon icon="solar:add-circle-outline" style="margin-right:4px;"></iconify-icon> New Project
             </a>
         </div>
     </form>
 
-   @if ($view === 'list')
-    {{-- ===== LIST VIEW: dense filterable/sortable spreadsheet ===== --}}
-    @php
+   <?php if($view === 'list'): ?>
+    
+    <?php
         function sortLink($column, $label, $sort, $dir)
         {
             $newDir = $sort === $column && $dir === 'asc' ? 'desc' : 'asc';
@@ -319,129 +319,134 @@
             $url = request()->fullUrlWithQuery(['sort' => $column, 'dir' => $newDir]);
             return "<a href=\"{$url}\">{$label} {$icon}</a>";
         }
-    @endphp
+    ?>
     <div class="card ct-stat-card">
         <div class="table-responsive">
             <table class="ct-list-table">
                 <thead>
                     <tr>
-                        <th>{!! sortLink('project_name', 'Project', $sort, $dir) !!}</th>
+                        <th><?php echo sortLink('project_name', 'Project', $sort, $dir); ?></th>
                         <th>
-                            {!! sortLink('project_type', 'Type', $sort, $dir) !!}
+                            <?php echo sortLink('project_type', 'Type', $sort, $dir); ?>
+
                             <div><select class="ct-filter-select filter-auto" name="project_type" form="filterForm">
                                     <option value="">All</option>
-                                    @foreach ($projectTypes as $type)
-                                        <option value="{{ $type }}" {{ request('project_type') == $type ? 'selected' : '' }}>
-                                            {{ $type }}</option>
-                                    @endforeach
+                                    <?php $__currentLoopData = $projectTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($type); ?>" <?php echo e(request('project_type') == $type ? 'selected' : ''); ?>>
+                                            <?php echo e($type); ?></option>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select></div>
                         </th>
-                        <th>{!! sortLink('location', 'Location', $sort, $dir) !!}</th>
-                        <th>{!! sortLink('contract_number', 'Contract No', $sort, $dir) !!}</th>
+                        <th><?php echo sortLink('location', 'Location', $sort, $dir); ?></th>
+                        <th><?php echo sortLink('contract_number', 'Contract No', $sort, $dir); ?></th>
                         <th>
                             Route
                             <div><select class="ct-filter-select filter-auto" name="route_id" form="filterForm">
                                     <option value="">All</option>
-                                    @foreach ($routes as $route)
-                                        <option value="{{ $route->id }}" {{ request('route_id') == $route->id ? 'selected' : '' }}>
-                                            {{ $route->route_no }}</option>
-                                    @endforeach
+                                    <?php $__currentLoopData = $routes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $route): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($route->id); ?>" <?php echo e(request('route_id') == $route->id ? 'selected' : ''); ?>>
+                                            <?php echo e($route->route_no); ?></option>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select></div>
                         </th>
                         <th>
                             Engineer
                             <div><select class="ct-filter-select filter-auto" name="engineer_id" form="filterForm">
                                     <option value="">All</option>
-                                    @foreach ($engineers as $engineer)
-                                        <option value="{{ $engineer->id }}" {{ request('engineer_id') == $engineer->id ? 'selected' : '' }}>
-                                            {{ $engineer->name }}</option>
-                                    @endforeach
+                                    <?php $__currentLoopData = $engineers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $engineer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($engineer->id); ?>" <?php echo e(request('engineer_id') == $engineer->id ? 'selected' : ''); ?>>
+                                            <?php echo e($engineer->name); ?></option>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select></div>
                         </th>
-                        <th>{!! sortLink('contract_start_date', 'Start', $sort, $dir) !!}</th>
-                        <th>{!! sortLink('contract_end_date', 'End', $sort, $dir) !!}</th>
+                        <th><?php echo sortLink('contract_start_date', 'Start', $sort, $dir); ?></th>
+                        <th><?php echo sortLink('contract_end_date', 'End', $sort, $dir); ?></th>
                         <th class="text-center">Units</th>
                         <th>
-                            {!! sortLink('status', 'Status', $sort, $dir) !!}
+                            <?php echo sortLink('status', 'Status', $sort, $dir); ?>
+
                             <div><select class="ct-filter-select filter-auto" name="status" form="filterForm">
                                     <option value="">All</option>
-                                    <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
-                                    <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }}>Expired</option>
-                                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                                    <option value="active" <?php echo e(request('status') == 'active' ? 'selected' : ''); ?>>Active</option>
+                                    <option value="expired" <?php echo e(request('status') == 'expired' ? 'selected' : ''); ?>>Expired</option>
+                                    <option value="cancelled" <?php echo e(request('status') == 'cancelled' ? 'selected' : ''); ?>>Cancelled</option>
                                 </select></div>
                         </th>
                         <th class="text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($contracts as $contract)
-                        @php
+                    <?php $__empty_1 = true; $__currentLoopData = $contracts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $contract): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $statusColor = match ($contract->status) {
                                 'active' => '#2E9E5B',
                                 'expired' => '#F0A202',
                                 'cancelled' => '#D64545',
                                 default => '#8792a2',
                             };
-                        @endphp
+                        ?>
                         <tr>
                             <td>
-                                <a href="{{ route('admin.contracts.show', $contract->id) }}" class="fw-semibold text-dark">
-                                    {{ $contract->project_name }}
+                                <a href="<?php echo e(route('admin.contracts.show', $contract->id)); ?>" class="fw-semibold text-dark">
+                                    <?php echo e($contract->project_name); ?>
+
                                 </a>
                             </td>
                             <td>
-                                @if($contract->project_type)
-                                    @php $tColor = typeColor($contract->project_type, $typeColorMap); @endphp
-                                    <span class="ct-status-pill" style="background: {{ $tColor }};">
-                                        {{ $contract->project_type }}
+                                <?php if($contract->project_type): ?>
+                                    <?php $tColor = typeColor($contract->project_type, $typeColorMap); ?>
+                                    <span class="ct-status-pill" style="background: <?php echo e($tColor); ?>;">
+                                        <?php echo e($contract->project_type); ?>
+
                                     </span>
-                                @else
+                                <?php else: ?>
                                     <span class="text-muted">—</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
-                            <td>{{ $contract->location }}</td>
-                            <td>{{ $contract->contract_number }}</td>
-                            <td>{{ optional($contract->route)->route_no ?? '—' }}</td>
-                            <td>{{ optional($contract->engineer)->name ?? '—' }}</td>
-                            <td>{{ $contract->contract_start_date->format('d M Y') }}</td>
-                            <td>{{ $contract->contract_end_date->format('d M Y') }}</td>
-                            <td class="text-center">{{ $contract->elevatorUnits->count() }}</td>
-                            <td><span class="ct-status-pill" style="background:{{ $statusColor }};">{{ ucfirst($contract->status) }}</span></td>
+                            <td><?php echo e($contract->location); ?></td>
+                            <td><?php echo e($contract->contract_number); ?></td>
+                            <td><?php echo e(optional($contract->route)->route_no ?? '—'); ?></td>
+                            <td><?php echo e(optional($contract->engineer)->name ?? '—'); ?></td>
+                            <td><?php echo e($contract->contract_start_date->format('d M Y')); ?></td>
+                            <td><?php echo e($contract->contract_end_date->format('d M Y')); ?></td>
+                            <td class="text-center"><?php echo e($contract->elevatorUnits->count()); ?></td>
+                            <td><span class="ct-status-pill" style="background:<?php echo e($statusColor); ?>;"><?php echo e(ucfirst($contract->status)); ?></span></td>
                             <td>
                                 <div class="d-flex justify-content-center gap-2">
-                                    <a href="{{ route('admin.contracts.show', $contract->id) }}" class="ct-icon-btn" title="View">
+                                    <a href="<?php echo e(route('admin.contracts.show', $contract->id)); ?>" class="ct-icon-btn" title="View">
                                         <iconify-icon icon="solar:eye-outline" style="font-size: 15px;"></iconify-icon>
                                     </a>
-                                    <a href="{{ route('admin.contracts.edit', $contract->id) }}" class="ct-icon-btn primary" title="Edit">
+                                    <a href="<?php echo e(route('admin.contracts.edit', $contract->id)); ?>" class="ct-icon-btn primary" title="Edit">
                                         <iconify-icon icon="solar:pen-2-outline" style="font-size: 15px;"></iconify-icon>
                                     </a>
                                     <button type="button" class="ct-icon-btn danger border-0 bg-transparent delete-contract"
-                                        data-id="{{ $contract->id }}" title="Delete">
+                                        data-id="<?php echo e($contract->id); ?>" title="Delete">
                                         <iconify-icon icon="solar:trash-bin-minimalistic-outline" style="font-size: 15px;"></iconify-icon>
                                     </button>
                                 </div>
                             </td>
                         </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="11" class="text-center text-muted py-5">
                                 <iconify-icon icon="solar:buildings-outline" style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                                 <p class="mb-0 mt-2">No projects match these filters.</p>
                             </td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
     <div class="d-flex justify-content-end mt-2">
-        {{ $contracts->links() }}
+        <?php echo e($contracts->links()); ?>
+
     </div>
-@else
-        {{-- ===== GRID VIEW ===== --}}
+<?php else: ?>
+        
         <div class="row">
-            @forelse($contracts as $contract)
-                @php
+            <?php $__empty_1 = true; $__currentLoopData = $contracts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $contract): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                <?php
                     $statusMap = [
                         'active' => ['color' => '#2E9E5B', 'bg' => 'rgba(46,158,91,0.10)', 'label' => 'Active'],
                         'expired' => ['color' => '#F0A202', 'bg' => 'rgba(240,162,2,0.10)', 'label' => 'Expired'],
@@ -454,70 +459,74 @@
                     ];
                     $progress = $contract->progressPercent();
                     $daysLeft = $contract->daysRemaining();
-                @endphp
+                ?>
                 <div class="col-md-4 mb-4">
-                    <div class="card ct-project-card h-100" style="--ct-accent: {{ $s['color'] }};">
+                    <div class="card ct-project-card h-100" style="--ct-accent: <?php echo e($s['color']); ?>;">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <p class="ct-project-title">{{ $contract->project_name }}</p>
+                                <p class="ct-project-title"><?php echo e($contract->project_name); ?></p>
                                 <span class="badge"
-                                    style="background: {{ $s['bg'] }}; color: {{ $s['color'] }}; font-weight: 600;">
-                                    {{ $s['label'] }}
+                                    style="background: <?php echo e($s['bg']); ?>; color: <?php echo e($s['color']); ?>; font-weight: 600;">
+                                    <?php echo e($s['label']); ?>
+
                                 </span>
                             </div>
 
                             <div class="ct-meta-row mb-1">
-                                <iconify-icon icon="solar:map-point-outline"></iconify-icon> {{ $contract->location }}
+                                <iconify-icon icon="solar:map-point-outline"></iconify-icon> <?php echo e($contract->location); ?>
+
                             </div>
                             <div class="ct-meta-row mb-3">
                                 <iconify-icon icon="solar:hashtag-outline"></iconify-icon>
-                                {{ $contract->contract_number }}
+                                <?php echo e($contract->contract_number); ?>
+
                             </div>
 
                             <div class="d-flex justify-content-between mb-1" style="font-size: 12px; color:#8792a2;">
-                                <span>{{ $contract->contract_start_date->format('d M Y') }}</span>
-                                <span>{{ $contract->contract_end_date->format('d M Y') }}</span>
+                                <span><?php echo e($contract->contract_start_date->format('d M Y')); ?></span>
+                                <span><?php echo e($contract->contract_end_date->format('d M Y')); ?></span>
                             </div>
                             <div class="ct-progress-track mb-1">
                                 <div class="ct-progress-fill"
-                                    style="width: {{ $progress }}%; background-color: {{ $s['color'] }};"></div>
+                                    style="width: <?php echo e($progress); ?>%; background-color: <?php echo e($s['color']); ?>;"></div>
                             </div>
-                            <p class="small mb-3" style="color: {{ $s['color'] }};">
-                                @if ($contract->status === 'active' && $daysLeft > 0)
+                            <p class="small mb-3" style="color: <?php echo e($s['color']); ?>;">
+                                <?php if($contract->status === 'active' && $daysLeft > 0): ?>
                                     <iconify-icon icon="solar:hourglass-outline" style="font-size:13px;"></iconify-icon>
-                                    {{ $daysLeft }} days remaining
-                                @elseif($contract->status === 'active')
+                                    <?php echo e($daysLeft); ?> days remaining
+                                <?php elseif($contract->status === 'active'): ?>
                                     Ending very soon
-                                @else
-                                    {{ $s['label'] }}
-                                @endif
+                                <?php else: ?>
+                                    <?php echo e($s['label']); ?>
+
+                                <?php endif; ?>
                             </p>
 
                             <div class="d-flex gap-2 mb-3">
                                 <div class="ct-info-pill">
-                                    <div class="val">{{ $contract->elevatorUnits->count() }}</div>
+                                    <div class="val"><?php echo e($contract->elevatorUnits->count()); ?></div>
                                     <div class="lbl">Units</div>
                                 </div>
                                 <div class="ct-info-pill">
                                     <div class="val" style="font-size:13px;">
-                                        {{ optional($contract->engineer)->name ?? '—' }}</div>
+                                        <?php echo e(optional($contract->engineer)->name ?? '—'); ?></div>
                                     <div class="lbl">Engineer</div>
                                 </div>
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center">
-                                <a href="{{ route('admin.contracts.show', $contract->id) }}" class="btn btn-sm"
-                                    style="background: {{ $s['bg'] }}; color: {{ $s['color'] }}; font-weight: 600; border: none;">
+                                <a href="<?php echo e(route('admin.contracts.show', $contract->id)); ?>" class="btn btn-sm"
+                                    style="background: <?php echo e($s['bg']); ?>; color: <?php echo e($s['color']); ?>; font-weight: 600; border: none;">
                                     View Details
                                 </a>
                                 <div class="d-flex gap-2">
-                                    <a href="{{ route('admin.contracts.edit', $contract->id) }}"
+                                    <a href="<?php echo e(route('admin.contracts.edit', $contract->id)); ?>"
                                         class="ct-icon-btn primary" title="Edit">
                                         <iconify-icon icon="solar:pen-2-outline" style="font-size: 16px;"></iconify-icon>
                                     </a>
                                     <button type="button"
                                         class="ct-icon-btn danger border-0 bg-transparent delete-contract"
-                                        data-id="{{ $contract->id }}" title="Delete">
+                                        data-id="<?php echo e($contract->id); ?>" title="Delete">
                                         <iconify-icon icon="solar:trash-bin-minimalistic-outline"
                                             style="font-size: 16px;"></iconify-icon>
                                     </button>
@@ -526,25 +535,26 @@
                         </div>
                     </div>
                 </div>
-            @empty
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                 <div class="col-12">
                     <div class="card ct-stat-card">
                         <div class="card-body text-center text-muted py-5">
                             <iconify-icon icon="solar:buildings-outline"
                                 style="font-size: 40px; opacity: 0.4;"></iconify-icon>
                             <p class="mb-2 mt-2">No projects yet.</p>
-                            <a href="{{ route('admin.contracts.create') }}" class="btn btn-primary btn-sm">Create your
+                            <a href="<?php echo e(route('admin.contracts.create')); ?>" class="btn btn-primary btn-sm">Create your
                                 first project</a>
                         </div>
                     </div>
                 </div>
-            @endforelse
+            <?php endif; ?>
         </div>
 
         <div class="d-flex justify-content-end">
-            {{ $contracts->links() }}
+            <?php echo e($contracts->links()); ?>
+
         </div>
-    @endif
+    <?php endif; ?>
 
     <script>
         document.querySelectorAll('.filter-auto').forEach(select => {
@@ -576,10 +586,10 @@
                     confirmButtonText: 'Yes, delete it!'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        fetch("{{ url('admin/contracts') }}/" + contractId, {
+                        fetch("<?php echo e(url('admin/contracts')); ?>/" + contractId, {
                                 method: 'DELETE',
                                 headers: {
-                                    'X-CSRF-TOKEN': "{{ csrf_token() }}",
+                                    'X-CSRF-TOKEN': "<?php echo e(csrf_token()); ?>",
                                     'Accept': 'application/json'
                                 }
                             })
@@ -597,4 +607,6 @@
             });
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.vertical', ['subtitle' => 'Projects'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\Personal Projects\Elevator\switch-smarter\resources\views/admin/contracts/index.blade.php ENDPATH**/ ?>

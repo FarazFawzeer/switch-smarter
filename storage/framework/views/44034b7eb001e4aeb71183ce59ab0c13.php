@@ -1,16 +1,16 @@
-@extends('layouts.vertical', ['subtitle' => 'Edit Project'])
 
-@section('content')
-    @include('layouts.partials.page-title', ['title' => 'Contracts', 'subtitle' => 'Edit Project'])
+
+<?php $__env->startSection('content'); ?>
+    <?php echo $__env->make('layouts.partials.page-title', ['title' => 'Contracts', 'subtitle' => 'Edit Project'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <div id="message"></div>
 
-    <form id="editContractForm" action="{{ route('admin.contracts.update', $contract->id) }}" method="POST"
+    <form id="editContractForm" action="<?php echo e(route('admin.contracts.update', $contract->id)); ?>" method="POST"
         enctype="multipart/form-data">
-        @csrf
-        @method('PUT')
+        <?php echo csrf_field(); ?>
+        <?php echo method_field('PUT'); ?>
 
-        {{-- SECTION 1: Project Information --}}
+        
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
@@ -22,44 +22,44 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Project Name</label>
-                        <input type="text" name="project_name" class="form-control" value="{{ $contract->project_name }}"
+                        <input type="text" name="project_name" class="form-control" value="<?php echo e($contract->project_name); ?>"
                             required>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Project Type</label>
-                        @php
+                        <?php
                             $knownTypes = ['Residential', 'Commercial', 'Industrial', 'Hospital', 'Hotel', 'Mixed Use'];
                             $isOtherType = $contract->project_type && !in_array($contract->project_type, $knownTypes);
-                        @endphp
+                        ?>
                         <select id="project_type" name="project_type" class="form-select">
                             <option value="">Select type (optional)</option>
-                            @foreach ($knownTypes as $type)
-                                <option value="{{ $type }}"
-                                    {{ $contract->project_type === $type ? 'selected' : '' }}>{{ $type }}</option>
-                            @endforeach
-                            <option value="Other" {{ $isOtherType ? 'selected' : '' }}>Other</option>
+                            <?php $__currentLoopData = $knownTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($type); ?>"
+                                    <?php echo e($contract->project_type === $type ? 'selected' : ''); ?>><?php echo e($type); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <option value="Other" <?php echo e($isOtherType ? 'selected' : ''); ?>>Other</option>
                         </select>
                         <input type="text" id="project_type_other" name="project_type_other" class="form-control mt-2"
-                            placeholder="Please specify" value="{{ $isOtherType ? $contract->project_type : '' }}"
-                            style="{{ $isOtherType ? '' : 'display:none;' }}">
+                            placeholder="Please specify" value="<?php echo e($isOtherType ? $contract->project_type : ''); ?>"
+                            style="<?php echo e($isOtherType ? '' : 'display:none;'); ?>">
                     </div>
                 </div>
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Location</label>
-                        <input type="text" name="location" class="form-control" value="{{ $contract->location }}"
+                        <input type="text" name="location" class="form-control" value="<?php echo e($contract->location); ?>"
                             required>
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Contract Start Date</label>
                         <input type="date" name="contract_start_date" class="form-control"
-                            value="{{ $contract->contract_start_date->format('Y-m-d') }}" required>
+                            value="<?php echo e($contract->contract_start_date->format('Y-m-d')); ?>" required>
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Contract End Date</label>
                         <input type="date" name="contract_end_date" class="form-control"
-                            value="{{ $contract->contract_end_date->format('Y-m-d') }}" required>
+                            value="<?php echo e($contract->contract_end_date->format('Y-m-d')); ?>" required>
                     </div>
                 </div>
 
@@ -67,26 +67,26 @@
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Number of Elevators / Units</label>
                         <input type="number" id="number_of_elevators" name="number_of_elevators" class="form-control"
-                            min="0" max="200" value="{{ $contract->elevatorUnits->count() }}" required>
+                            min="0" max="200" value="<?php echo e($contract->elevatorUnits->count()); ?>" required>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Status</label>
                         <select name="status" class="form-select" required>
-                            <option value="active" {{ $contract->status == 'active' ? 'selected' : '' }}>Active</option>
-                            <option value="expired" {{ $contract->status == 'expired' ? 'selected' : '' }}>Expired</option>
-                            <option value="cancelled" {{ $contract->status == 'cancelled' ? 'selected' : '' }}>Cancelled
+                            <option value="active" <?php echo e($contract->status == 'active' ? 'selected' : ''); ?>>Active</option>
+                            <option value="expired" <?php echo e($contract->status == 'expired' ? 'selected' : ''); ?>>Expired</option>
+                            <option value="cancelled" <?php echo e($contract->status == 'cancelled' ? 'selected' : ''); ?>>Cancelled
                             </option>
                         </select>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Contract Document <span class="text-muted">(optional)</span></label>
                         <input type="file" name="contract_document" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
-                        @if ($contract->contract_document)
+                        <?php if($contract->contract_document): ?>
                             <div class="form-text">
-                                Current: <a href="{{ storage_asset($contract->contract_document) }}" target="_blank">View
+                                Current: <a href="<?php echo e(storage_asset($contract->contract_document)); ?>" target="_blank">View
                                     existing document</a>
                             </div>
-                        @endif
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -97,7 +97,7 @@
             </div>
         </div>
 
-        {{-- SECTION 2: Elevator/Unit Details --}}
+        
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
@@ -109,7 +109,7 @@
             <div class="card-body" id="elevatorUnitsContainer"></div>
         </div>
 
-        {{-- SECTION 3: Route & Engineer Assignment --}}
+        
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
@@ -123,12 +123,13 @@
                         <label class="form-label">Route</label>
                         <select name="route_id" class="form-select mb-2">
                             <option value="">No route yet / assign later</option>
-                            @foreach ($routes as $route)
-                                <option value="{{ $route->id }}"
-                                    {{ $contract->route_id == $route->id ? 'selected' : '' }}>
-                                    {{ $route->route_no }}{{ $route->description ? ' — ' . $route->description : '' }}
+                            <?php $__currentLoopData = $routes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $route): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($route->id); ?>"
+                                    <?php echo e($contract->route_id == $route->id ? 'selected' : ''); ?>>
+                                    <?php echo e($route->route_no); ?><?php echo e($route->description ? ' — ' . $route->description : ''); ?>
+
                                 </option>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                         <input type="text" name="new_route_no" class="form-control"
                             placeholder="Or type a new route, e.g. RT-06">
@@ -139,12 +140,13 @@
                         <label class="form-label">Engineer</label>
                         <select name="assigned_engineer_id" class="form-select" required>
                             <option value="">Select Engineer</option>
-                            @foreach ($engineers as $engineer)
-                                <option value="{{ $engineer->id }}"
-                                    {{ $contract->assigned_engineer_id == $engineer->id ? 'selected' : '' }}>
-                                    {{ $engineer->name }}
+                            <?php $__currentLoopData = $engineers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $engineer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($engineer->id); ?>"
+                                    <?php echo e($contract->assigned_engineer_id == $engineer->id ? 'selected' : ''); ?>>
+                                    <?php echo e($engineer->name); ?>
+
                                 </option>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                 </div>
@@ -152,12 +154,12 @@
         </div>
 
         <div class="d-flex justify-content-end gap-2 mb-4">
-            <a href="{{ route('admin.contracts.show', $contract->id) }}" class="btn btn-secondary">Cancel</a>
+            <a href="<?php echo e(route('admin.contracts.show', $contract->id)); ?>" class="btn btn-secondary">Cancel</a>
             <button type="submit" class="btn btn-primary">Update Project</button>
         </div>
     </form>
 
-    {{-- BULK IMPORT: separate mini-form, adds units without touching the ones above --}}
+    
     <div class="card">
         <div class="card-header">
             <h5 class="card-title mb-0">
@@ -171,9 +173,9 @@
             <div id="importMessage"></div>
             <p class="small text-muted">Expected columns (first row as headers): <code>identification_no, unit_type,
                     elevator_type, speed, capacity, brand, model</code></p>
-            <form id="importUnitsForm" action="{{ route('admin.contracts.units.import', $contract->id) }}"
+            <form id="importUnitsForm" action="<?php echo e(route('admin.contracts.units.import', $contract->id)); ?>"
                 method="POST" enctype="multipart/form-data">
-                @csrf
+                <?php echo csrf_field(); ?>
                 <div class="d-flex gap-2">
                     <input type="file" name="units_file" class="form-control" accept=".xlsx,.xls,.csv" required>
                     <button type="submit" class="btn btn-primary text-nowrap">Upload &amp; Import</button>
@@ -182,7 +184,7 @@
         </div>
     </div>
 
-    {{-- Template for one custom field row --}}
+    
     <template id="customFieldTemplate">
         <div class="d-flex gap-2 mb-2 custom-field-row">
             <input type="text" class="form-control custom-field-label"
@@ -194,7 +196,7 @@
         </div>
     </template>
 
-    {{-- Template for one elevator unit block --}}
+    
     <template id="elevatorUnitTemplate">
         <div class="border rounded p-3 mb-3 elevator-unit-block">
             <h6 class="mb-3 text-primary unit-index-label">Unit __INDEX_DISPLAY__</h6>
@@ -254,8 +256,8 @@
     </template>
 
     <script>
-        const existingUnits = @json($contract->elevatorUnits);
-        const existingContractFields = @json($contract->custom_fields ?? []);
+        const existingUnits = <?php echo json_encode($contract->elevatorUnits, 15, 512) ?>;
+        const existingContractFields = <?php echo json_encode($contract->custom_fields ?? [], 15, 512) ?>;
 
         document.getElementById('project_type').addEventListener('change', function() {
             document.getElementById('project_type_other').style.display = this.value === 'Other' ? 'block' : 'none';
@@ -428,4 +430,6 @@
                 });
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.vertical', ['subtitle' => 'Edit Project'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\Personal Projects\Elevator\switch-smarter\resources\views/admin/contracts/edit.blade.php ENDPATH**/ ?>

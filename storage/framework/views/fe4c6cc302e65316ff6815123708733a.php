@@ -1,7 +1,7 @@
-@extends('layouts.vertical', ['subtitle' => 'Team Create'])
 
-@section('content')
-    @include('layouts.partials.page-title', ['title' => 'Team', 'subtitle' => 'Create'])
+
+<?php $__env->startSection('content'); ?>
+    <?php echo $__env->make('layouts.partials.page-title', ['title' => 'Team', 'subtitle' => 'Create'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <div class="card">
         <div class="card-header">
@@ -11,18 +11,18 @@
         <div class="card-body">
             <div id="message"></div>
 
-            <form id="createTeamForm" action="{{ route('admin.team.store') }}" method="POST" enctype="multipart/form-data">
-                @csrf
+            <form id="createTeamForm" action="<?php echo e(route('admin.team.store')); ?>" method="POST" enctype="multipart/form-data">
+                <?php echo csrf_field(); ?>
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="name" class="form-label">Full Name</label>
-                        <input type="text" id="name" name="name" class="form-control" value="{{ old('name') }}"
+                        <input type="text" id="name" name="name" class="form-control" value="<?php echo e(old('name')); ?>"
                             placeholder="Ex: Kasun Perera" required>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="email" class="form-label">Email Address</label>
-                        <input type="email" id="email" name="email" class="form-control" value="{{ old('email') }}"
+                        <input type="email" id="email" name="email" class="form-control" value="<?php echo e(old('email')); ?>"
                             placeholder="Ex: kasun@company.com" required>
                     </div>
                 </div>
@@ -62,9 +62,9 @@
                         <label for="engineer_id" class="form-label">Reports to (Engineer)</label>
                         <select id="engineer_id" name="engineer_id" class="form-select">
                             <option value="">Select Engineer</option>
-                            @foreach ($engineers as $engineer)
-                                <option value="{{ $engineer->id }}">{{ $engineer->name }}</option>
-                            @endforeach
+                            <?php $__currentLoopData = $engineers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $engineer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($engineer->id); ?>"><?php echo e($engineer->name); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
 
@@ -72,35 +72,35 @@
                         <label for="supervisor_id" class="form-label">Reports to (Supervisor)</label>
                         <select id="supervisor_id" name="supervisor_id" class="form-select">
                             <option value="">Select Supervisor</option>
-                            @foreach ($supervisors as $supervisor)
-                                <option value="{{ $supervisor->id }}">{{ $supervisor->name }}</option>
-                            @endforeach
+                            <?php $__currentLoopData = $supervisors; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $supervisor): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($supervisor->id); ?>"><?php echo e($supervisor->name); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
                 </div>
 
-                {{-- Routes: checkboxes for Engineer/Supervisor (multiple), radio for Technician (single) --}}
+                
                 <div class="row" id="routesSection" style="display:none;">
                     <div class="col-12 mb-3">
                         <label class="form-label" id="routesLabel">Routes</label>
                         <div class="form-text mb-2" id="routesHelp"></div>
 
-                        @if ($routes->isNotEmpty())
+                        <?php if($routes->isNotEmpty()): ?>
                             <div id="routesCheckboxes" class="border rounded p-2 mb-2">
-                                @foreach ($routes as $route)
+                                <?php $__currentLoopData = $routes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $route): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <div class="form-check">
                                         <input class="form-check-input route-checkbox" type="checkbox" name="routes[]"
-                                            value="{{ $route->id }}" id="route-{{ $route->id }}">
-                                        <label class="form-check-label" for="route-{{ $route->id }}">
-                                            <strong>{{ $route->route_no }}</strong>
-                                            @if ($route->description)
-                                                <span class="text-muted"> — {{ $route->description }}</span>
-                                            @endif
+                                            value="<?php echo e($route->id); ?>" id="route-<?php echo e($route->id); ?>">
+                                        <label class="form-check-label" for="route-<?php echo e($route->id); ?>">
+                                            <strong><?php echo e($route->route_no); ?></strong>
+                                            <?php if($route->description): ?>
+                                                <span class="text-muted"> — <?php echo e($route->description); ?></span>
+                                            <?php endif; ?>
                                         </label>
                                     </div>
-                                @endforeach
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </div>
-                        @endif
+                        <?php endif; ?>
 
                         <div class="d-flex align-items-center gap-2">
                             <input type="text" name="new_route_no" class="form-control" style="max-width: 220px;"
@@ -191,4 +191,6 @@
                 });
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.vertical', ['subtitle' => 'Team Create'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\Personal Projects\Elevator\switch-smarter\resources\views/admin/team/create.blade.php ENDPATH**/ ?>

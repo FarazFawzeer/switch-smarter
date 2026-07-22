@@ -1,10 +1,10 @@
-@extends('layouts.vertical', ['subtitle' => $contract->project_name])
 
-@section('content')
-    @include('layouts.partials.page-title', [
+
+<?php $__env->startSection('content'); ?>
+    <?php echo $__env->make('layouts.partials.page-title', [
         'title' => 'Contracts',
         'subtitle' => $contract->project_name,
-    ])
+    ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <style>
         .sh-info-label {
@@ -40,7 +40,7 @@
         }
     </style>
 
-    @php
+    <?php
         $statusMap = [
             'active' => '#2E9E5B',
             'expired' => '#F0A202',
@@ -60,74 +60,74 @@
 
         // Pair up custom fields two-per-row so they blend into the same grid as the fixed fields
         $customFieldPairs = collect($contract->custom_fields ?? [])->chunk(2);
-    @endphp
+    ?>
 
     <div class="row">
         <div class="col-md-8">
-            {{-- Project Information --}}
+            
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">{{ $contract->project_name }}</h5>
+                    <h5 class="card-title mb-0"><?php echo e($contract->project_name); ?></h5>
                     <div class="d-flex gap-2">
-                        @if ($contract->project_type)
+                        <?php if($contract->project_type): ?>
                             <span class="sh-status-pill"
-                                style="background: {{ $typeColor }};">{{ $contract->project_type }}</span>
-                        @endif
+                                style="background: <?php echo e($typeColor); ?>;"><?php echo e($contract->project_type); ?></span>
+                        <?php endif; ?>
                         <span class="sh-status-pill"
-                            style="background: {{ $statusColor }};">{{ ucfirst($contract->status) }}</span>
+                            style="background: <?php echo e($statusColor); ?>;"><?php echo e(ucfirst($contract->status)); ?></span>
                     </div>
                 </div>
                 <div class="card-body">
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <p class="sh-info-label">Location</p>
-                            <p class="sh-info-value">{{ $contract->location }}</p>
+                            <p class="sh-info-value"><?php echo e($contract->location); ?></p>
                         </div>
                         <div class="col-md-6">
                             <p class="sh-info-label">Contract Number</p>
-                            <p class="sh-info-value">{{ $contract->contract_number ?? '—' }}</p>
+                            <p class="sh-info-value"><?php echo e($contract->contract_number ?? '—'); ?></p>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <p class="sh-info-label">Start Date</p>
-                            <p class="sh-info-value">{{ $contract->contract_start_date->format('d M Y') }}</p>
+                            <p class="sh-info-value"><?php echo e($contract->contract_start_date->format('d M Y')); ?></p>
                         </div>
                         <div class="col-md-6">
                             <p class="sh-info-label">End Date</p>
-                            <p class="sh-info-value">{{ $contract->contract_end_date->format('d M Y') }}</p>
+                            <p class="sh-info-value"><?php echo e($contract->contract_end_date->format('d M Y')); ?></p>
                         </div>
                     </div>
 
-                    {{-- Custom fields blended into the same grid, same style, no separate section --}}
-                    @foreach ($customFieldPairs as $pair)
+                    
+                    <?php $__currentLoopData = $customFieldPairs; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $pair): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <div class="row mb-3">
-                            @foreach ($pair as $field)
+                            <?php $__currentLoopData = $pair; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $field): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <div class="col-md-6">
-                                    <p class="sh-info-label">{{ $field['label'] }}</p>
-                                    <p class="sh-info-value">{{ $field['value'] ?: '—' }}</p>
+                                    <p class="sh-info-label"><?php echo e($field['label']); ?></p>
+                                    <p class="sh-info-value"><?php echo e($field['value'] ?: '—'); ?></p>
                                 </div>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </div>
-                    @endforeach
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
-                    @if ($contract->contract_document)
-                        <a href="{{ storage_asset($contract->contract_document) }}" target="_blank"
+                    <?php if($contract->contract_document): ?>
+                        <a href="<?php echo e(storage_asset($contract->contract_document)); ?>" target="_blank"
                             class="btn btn-sm btn-outline-secondary mt-1">
                             <iconify-icon icon="solar:file-text-outline"></iconify-icon> View Contract Document
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
 
-            {{-- Elevator / Unit Details --}}
-            {{-- Elevator / Unit Details --}}
+            
+            
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">Elevator / Unit Details ({{ $contract->elevatorUnits->count() }})</h5>
+                    <h5 class="card-title mb-0">Elevator / Unit Details (<?php echo e($contract->elevatorUnits->count()); ?>)</h5>
                 </div>
                 <div class="card-body">
-                    @php
+                    <?php
                         // Collect every distinct custom field label used across all units, in first-seen order
                         $unitCustomLabels = collect();
                         foreach ($contract->elevatorUnits as $unit) {
@@ -137,7 +137,7 @@
                                 }
                             }
                         }
-                    @endphp
+                    ?>
                     <div class="table-responsive">
                         <table class="table table-hover table-centered mb-0">
                             <thead class="table-light">
@@ -149,42 +149,42 @@
                                     <th>Capacity</th>
                                     <th>Brand</th>
                                     <th>Model</th>
-                                    @foreach ($unitCustomLabels as $label)
-                                        <th>{{ $label }}</th>
-                                    @endforeach
+                                    <?php $__currentLoopData = $unitCustomLabels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <th><?php echo e($label); ?></th>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse($contract->elevatorUnits as $unit)
-                                    @php
+                                <?php $__empty_1 = true; $__currentLoopData = $contract->elevatorUnits; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $unit): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                    <?php
                                         $unitFieldMap = collect($unit->custom_fields ?? [])->pluck('value', 'label');
-                                    @endphp
+                                    ?>
                                     <tr>
-                                        <td>{{ $unit->identification_no }}</td>
-                                        <td>{{ $unit->unit_type }}</td>
-                                        <td>{{ $unit->elevator_type ?? '—' }}</td>
-                                        <td>{{ $unit->speed ?? '—' }}</td>
-                                        <td>{{ $unit->capacity ?? '—' }}</td>
-                                        <td>{{ $unit->brand ?? '—' }}</td>
-                                        <td>{{ $unit->model ?? '—' }}</td>
-                                        @foreach ($unitCustomLabels as $label)
-                                            <td>{{ $unitFieldMap->get($label, '—') }}</td>
-                                        @endforeach
+                                        <td><?php echo e($unit->identification_no); ?></td>
+                                        <td><?php echo e($unit->unit_type); ?></td>
+                                        <td><?php echo e($unit->elevator_type ?? '—'); ?></td>
+                                        <td><?php echo e($unit->speed ?? '—'); ?></td>
+                                        <td><?php echo e($unit->capacity ?? '—'); ?></td>
+                                        <td><?php echo e($unit->brand ?? '—'); ?></td>
+                                        <td><?php echo e($unit->model ?? '—'); ?></td>
+                                        <?php $__currentLoopData = $unitCustomLabels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <td><?php echo e($unitFieldMap->get($label, '—')); ?></td>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </tr>
-                                @empty
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                     <tr>
-                                        <td colspan="{{ 7 + $unitCustomLabels->count() }}"
+                                        <td colspan="<?php echo e(7 + $unitCustomLabels->count()); ?>"
                                             class="text-center text-muted py-3">No units recorded yet.</td>
                                     </tr>
-                                @endforelse
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            {{-- Renewal History --}}
-            @if ($contract->renewals->count())
+            
+            <?php if($contract->renewals->count()): ?>
                 <div class="card">
                     <div class="card-header">
                         <h5 class="card-title mb-0">Renewal History</h5>
@@ -200,25 +200,25 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach ($contract->renewals as $renewal)
+                                <?php $__currentLoopData = $contract->renewals; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $renewal): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <tr>
-                                        <td>{{ $renewal->previous_start_date->format('d M Y') }} –
-                                            {{ $renewal->previous_end_date->format('d M Y') }}</td>
-                                        <td>{{ $renewal->new_start_date->format('d M Y') }} –
-                                            {{ $renewal->new_end_date->format('d M Y') }}</td>
-                                        <td>{{ optional($renewal->renewedBy)->name ?? '—' }}</td>
-                                        <td>{{ $renewal->created_at->format('d M Y') }}</td>
+                                        <td><?php echo e($renewal->previous_start_date->format('d M Y')); ?> –
+                                            <?php echo e($renewal->previous_end_date->format('d M Y')); ?></td>
+                                        <td><?php echo e($renewal->new_start_date->format('d M Y')); ?> –
+                                            <?php echo e($renewal->new_end_date->format('d M Y')); ?></td>
+                                        <td><?php echo e(optional($renewal->renewedBy)->name ?? '—'); ?></td>
+                                        <td><?php echo e($renewal->created_at->format('d M Y')); ?></td>
                                     </tr>
-                                @endforeach
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </tbody>
                         </table>
                     </div>
                 </div>
-            @endif
+            <?php endif; ?>
         </div>
 
         <div class="col-md-4">
-            {{-- Route & Engineer Assignment --}}
+            
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Route & Engineer Assignment</h5>
@@ -227,57 +227,59 @@
                     <div class="mb-3">
                         <p class="sh-info-label">Route</p>
                         <p class="sh-info-value">
-                            @if ($contract->route)
-                                <span class="badge badge-soft-secondary">{{ $contract->route->route_no }}</span>
-                                @if ($contract->route->description)
-                                    <span class="text-muted small d-block mt-1">{{ $contract->route->description }}</span>
-                                @endif
-                            @else
+                            <?php if($contract->route): ?>
+                                <span class="badge badge-soft-secondary"><?php echo e($contract->route->route_no); ?></span>
+                                <?php if($contract->route->description): ?>
+                                    <span class="text-muted small d-block mt-1"><?php echo e($contract->route->description); ?></span>
+                                <?php endif; ?>
+                            <?php else: ?>
                                 <span class="text-muted">Not assigned yet</span>
-                            @endif
+                            <?php endif; ?>
                         </p>
                     </div>
                     <div class="mb-0">
                         <p class="sh-info-label">Engineer</p>
-                        <p class="sh-info-value">{{ optional($contract->engineer)->name ?? '—' }}</p>
+                        <p class="sh-info-value"><?php echo e(optional($contract->engineer)->name ?? '—'); ?></p>
                     </div>
                 </div>
             </div>
 
-            {{-- Scheduling status --}}
+            
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">PPM Scheduling</h5>
                 </div>
                 <div class="card-body">
-                    @if ($contract->is_scheduled)
+                    <?php if($contract->is_scheduled): ?>
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <iconify-icon icon="solar:check-circle-bold"
                                 style="color:#2E9E5B; font-size:20px;"></iconify-icon>
                             <span class="fw-semibold">Scheduled</span>
                         </div>
                         <p class="sh-info-label mb-0">PPM Start Date</p>
-                        <p class="sh-info-value">{{ optional($contract->ppm_start_date)->format('d M Y') ?? '—' }}</p>
-                    @else
+                        <p class="sh-info-value"><?php echo e(optional($contract->ppm_start_date)->format('d M Y') ?? '—'); ?></p>
+                    <?php else: ?>
                         <div class="d-flex align-items-center gap-2">
                             <iconify-icon icon="solar:clock-circle-outline"
                                 style="color:#F0A202; font-size:20px;"></iconify-icon>
                             <span class="text-muted">Not scheduled yet</span>
                         </div>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ route('admin.contracts.edit', $contract->id) }}" class="btn btn-primary flex-fill">Edit
+                <a href="<?php echo e(route('admin.contracts.edit', $contract->id)); ?>" class="btn btn-primary flex-fill">Edit
                     Project</a>
-                @if ($contract->status === 'expired')
-                    <a href="{{ route('admin.contracts.renew.form', $contract->id) }}" class="btn btn-warning flex-fill">
+                <?php if($contract->status === 'expired'): ?>
+                    <a href="<?php echo e(route('admin.contracts.renew.form', $contract->id)); ?>" class="btn btn-warning flex-fill">
                         <iconify-icon icon="solar:refresh-outline" style="margin-right:4px;"></iconify-icon> Renew Contract
                     </a>
-                @endif
-                <a href="{{ route('admin.contracts.index') }}" class="btn btn-secondary flex-fill">Back to List</a>
+                <?php endif; ?>
+                <a href="<?php echo e(route('admin.contracts.index')); ?>" class="btn btn-secondary flex-fill">Back to List</a>
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.vertical', ['subtitle' => $contract->project_name], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\Personal Projects\Elevator\switch-smarter\resources\views/admin/contracts/show.blade.php ENDPATH**/ ?>

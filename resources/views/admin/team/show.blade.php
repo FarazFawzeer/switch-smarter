@@ -50,6 +50,17 @@
                 </div>
             </div>
 
+            <div class="card">
+                <div class="card-header"><h6 class="card-title mb-0">Routes</h6></div>
+                <div class="card-body">
+                    @forelse($team->routes as $route)
+                        <span class="badge badge-soft-secondary me-1 mb-1">{{ $route->route_no }}</span>
+                    @empty
+                        <p class="text-muted small mb-0">No routes assigned yet.</p>
+                    @endforelse
+                </div>
+            </div>
+
             <a href="{{ route('admin.team.index') }}" class="btn btn-secondary w-100">Back to Team List</a>
         </div>
 
@@ -75,7 +86,12 @@
                                         class="avatar-sm rounded-circle">
                                     <div>
                                         <a href="{{ route('admin.team.show', $supervisor->id) }}" class="fw-semibold text-dark">{{ $supervisor->name }}</a>
-                                        <div class="small text-muted">Supervisor</div>
+                                        <div class="small text-muted">
+                                            Supervisor
+                                            @foreach($supervisor->routes as $route)
+                                                <span class="badge badge-soft-secondary ms-1">{{ $route->route_no }}</span>
+                                            @endforeach
+                                        </div>
                                     </div>
                                 </div>
                                 <span class="badge badge-soft-secondary">{{ $supervisor->technicians_count }} technician(s)</span>
@@ -92,7 +108,12 @@
                                         class="avatar-sm rounded-circle">
                                     <div>
                                         <a href="{{ route('admin.team.show', $technician->id) }}" class="fw-semibold text-dark">{{ $technician->name }}</a>
-                                        <div class="small text-muted">Technician</div>
+                                        <div class="small text-muted">
+                                            {{ $technician->email }}
+                                            @if($technician->routes->first())
+                                                <span class="badge badge-soft-secondary ms-1">{{ $technician->routes->first()->route_no }}</span>
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
                             </div>
