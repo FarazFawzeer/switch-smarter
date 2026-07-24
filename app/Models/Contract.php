@@ -10,26 +10,39 @@ use Carbon\Carbon;
 
 class Contract extends Model
 {
-   protected $fillable = [
-    'project_name', 'project_type', 'location', 'contract_number', 'number_of_elevators',
-    'contract_start_date', 'contract_end_date', 'ppm_start_date', 'is_scheduled',
-    'route_id', 'assigned_engineer_id', 'assigned_supervisor_id', 'assigned_technician_id',
-    'status', 'contract_document', 'custom_fields', 'created_by',
-];
+    protected $fillable = [
+        'project_name',
+        'project_type',
+        'location',
+        'contract_number',
+        'number_of_elevators',
+        'contract_start_date',
+        'contract_end_date',
+        'ppm_start_date',
+        'is_scheduled',
+        'route_id',
+        'assigned_engineer_id',
+        'assigned_supervisor_id',
+        'assigned_technician_id',
+        'status',
+        'contract_document',
+        'custom_fields',
+        'created_by',
+    ];
 
 
-protected $casts = [
-    'contract_start_date' => 'date',
-    'contract_end_date'   => 'date',
-    'ppm_start_date'      => 'date',
-    'is_scheduled'        => 'boolean',
-    'custom_fields'       => 'array',
-];
+    protected $casts = [
+        'contract_start_date' => 'date',
+        'contract_end_date'   => 'date',
+        'ppm_start_date'      => 'date',
+        'is_scheduled'        => 'boolean',
+        'custom_fields'       => 'array',
+    ];
 
-public function renewals(): \Illuminate\Database\Eloquent\Relations\HasMany
-{
-    return $this->hasMany(ContractRenewal::class)->latest();
-}
+    public function renewals(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ContractRenewal::class)->latest();
+    }
 
     public function creator(): BelongsTo
     {
@@ -103,5 +116,18 @@ public function renewals(): \Illuminate\Database\Eloquent\Relations\HasMany
     public function route(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Route::class);
+    }
+
+    /**
+     * The PPM job scheduled for the current calendar month, if any.
+     * Used by the Scheduling list to show this month's status at a glance.
+     */
+    public function currentMonthPpmJob(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(JobRecord::class)
+            ->where('job_type', 'ppm')
+            ->whereYear('scheduled_date', now()->year)
+            ->whereMonth('scheduled_date', now()->month)
+            ->latestOfMany('scheduled_date');
     }
 }

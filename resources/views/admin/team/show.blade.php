@@ -3,27 +3,51 @@
 @section('content')
     @include('layouts.partials.page-title', ['title' => 'Team', 'subtitle' => $team->name])
 
+    <style>
+        .tm-show-label { font-size: 12px; color: #8792a2; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
+        .tm-show-value { font-size: 14px; color: #16233b; font-weight: 500; }
+        .tm-show-card { border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(15,42,67,0.06); }
+        .tm-role-pill { display: inline-block; padding: 4px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; color: #fff; }
+        .tm-report-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+        .tm-report-row + .tm-report-row { border-top: 1px solid #f0f1f4; }
+    </style>
+
     @php
-        $roleColor = match($team->type) {
-            'Manager' => 'primary', 'Engineer' => 'info', 'Supervisor' => 'warning', 'Technician' => 'success', default => 'secondary',
-        };
+        $roleColorMap = [
+            'Manager' => '#2E5AAC', 'Engineer' => '#17A2B8', 'Supervisor' => '#F0A202', 'Technician' => '#2E9E5B',
+        ];
+        $roleColor = $roleColorMap[$team->type] ?? '#8792a2';
     @endphp
 
     <div class="row">
         <div class="col-md-4">
-            <div class="card">
+            {{-- Identity card --}}
+            <div class="card tm-show-card">
                 <div class="card-body text-center">
                     <img src="{{ storage_asset($team->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                         alt="{{ $team->name }}" class="rounded-circle mb-3" style="width: 96px; height: 96px; object-fit: cover;">
                     <h5 class="mb-1">{{ $team->name }}</h5>
-                    <span class="badge badge-soft-{{ $roleColor }} mb-3">{{ $team->type }}</span>
-                    <p class="text-muted small mb-0">
-                        <iconify-icon icon="solar:letter-outline"></iconify-icon> {{ $team->email }}
-                    </p>
+                    <span class="tm-role-pill mb-3" style="background: {{ $roleColor }};">{{ $team->type }}</span>
+
+                    <div class="text-start mt-3">
+                        <div class="mb-2">
+                            <p class="tm-show-label mb-0">Employee ID</p>
+                            <p class="tm-show-value">{{ $team->employee_id ?? '—' }}</p>
+                        </div>
+                        <div class="mb-2">
+                            <p class="tm-show-label mb-0">Email</p>
+                            <p class="tm-show-value">{{ $team->email }}</p>
+                        </div>
+                        <div class="mb-0">
+                            <p class="tm-show-label mb-0">Contact No</p>
+                            <p class="tm-show-value">{{ $team->contact_no ?: '—' }}</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="card">
+            {{-- Reports To --}}
+            <div class="card tm-show-card">
                 <div class="card-header"><h6 class="card-title mb-0">Reports To</h6></div>
                 <div class="card-body">
                     @if($team->type === 'Supervisor' && $team->engineer)
@@ -31,7 +55,7 @@
                             <img src="{{ storage_asset($team->engineer->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                 class="avatar-sm rounded-circle">
                             <div>
-                                <p class="mb-0 fw-semibold">{{ $team->engineer->name }}</p>
+                                <a href="{{ route('admin.team.show', $team->engineer->id) }}" class="fw-semibold text-dark d-block">{{ $team->engineer->name }}</a>
                                 <span class="small text-muted">Engineer</span>
                             </div>
                         </div>
@@ -40,7 +64,7 @@
                             <img src="{{ storage_asset($team->supervisor->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                 class="avatar-sm rounded-circle">
                             <div>
-                                <p class="mb-0 fw-semibold">{{ $team->supervisor->name }}</p>
+                                <a href="{{ route('admin.team.show', $team->supervisor->id) }}" class="fw-semibold text-dark d-block">{{ $team->supervisor->name }}</a>
                                 <span class="small text-muted">Supervisor</span>
                             </div>
                         </div>
@@ -50,7 +74,8 @@
                 </div>
             </div>
 
-            <div class="card">
+            {{-- Routes --}}
+            <div class="card tm-show-card">
                 <div class="card-header"><h6 class="card-title mb-0">Routes</h6></div>
                 <div class="card-body">
                     @forelse($team->routes as $route)
@@ -61,11 +86,14 @@
                 </div>
             </div>
 
-            <a href="{{ route('admin.team.index') }}" class="btn btn-secondary w-100">Back to Team List</a>
+            <div class="d-flex gap-2">
+                <a href="{{ route('admin.team.edit', $team->id) }}" class="btn btn-primary flex-fill">Edit Details</a>
+                <a href="{{ route('admin.team.index') }}" class="btn btn-secondary flex-fill">Back to List</a>
+            </div>
         </div>
 
         <div class="col-md-8">
-            <div class="card">
+            <div class="card tm-show-card">
                 <div class="card-header">
                     <h6 class="card-title mb-0">
                         @if($team->type === 'Engineer')
@@ -80,14 +108,14 @@
                 <div class="card-body">
                     @if($team->type === 'Engineer')
                         @forelse($reportees as $supervisor)
-                            <div class="d-flex justify-content-between align-items-center py-2 {{ !$loop->last ? 'border-bottom' : '' }}">
+                            <div class="tm-report-row justify-content-between">
                                 <div class="d-flex align-items-center gap-2">
                                     <img src="{{ storage_asset($supervisor->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                         class="avatar-sm rounded-circle">
                                     <div>
-                                        <a href="{{ route('admin.team.show', $supervisor->id) }}" class="fw-semibold text-dark">{{ $supervisor->name }}</a>
+                                        <a href="{{ route('admin.team.show', $supervisor->id) }}" class="fw-semibold text-dark d-block">{{ $supervisor->name }}</a>
                                         <div class="small text-muted">
-                                            Supervisor
+                                            {{ $supervisor->employee_id ?? '—' }}
                                             @foreach($supervisor->routes as $route)
                                                 <span class="badge badge-soft-secondary ms-1">{{ $route->route_no }}</span>
                                             @endforeach
@@ -102,14 +130,14 @@
 
                     @elseif($team->type === 'Supervisor')
                         @forelse($reportees as $technician)
-                            <div class="d-flex justify-content-between align-items-center py-2 {{ !$loop->last ? 'border-bottom' : '' }}">
+                            <div class="tm-report-row justify-content-between">
                                 <div class="d-flex align-items-center gap-2">
                                     <img src="{{ storage_asset($technician->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                         class="avatar-sm rounded-circle">
                                     <div>
-                                        <a href="{{ route('admin.team.show', $technician->id) }}" class="fw-semibold text-dark">{{ $technician->name }}</a>
+                                        <a href="{{ route('admin.team.show', $technician->id) }}" class="fw-semibold text-dark d-block">{{ $technician->name }}</a>
                                         <div class="small text-muted">
-                                            {{ $technician->email }}
+                                            {{ $technician->employee_id ?? '—' }} · {{ $technician->email }}
                                             @if($technician->routes->first())
                                                 <span class="badge badge-soft-secondary ms-1">{{ $technician->routes->first()->route_no }}</span>
                                             @endif

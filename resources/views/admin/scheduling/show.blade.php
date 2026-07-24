@@ -30,6 +30,7 @@
                     <p class="mb-0">{{ $contract->ppm_start_date->format('d M Y') }}</p>
                 </div>
             </div>
+
             @if ($contract->renewals->count())
                 <div class="alert alert-info d-flex align-items-center gap-2 mb-4">
                     <iconify-icon icon="solar:refresh-outline" style="font-size: 18px;"></iconify-icon>
@@ -38,6 +39,64 @@
                     {{ $contract->renewals->first()->new_end_date->format('d M Y') }}.
                 </div>
             @endif
+
+            {{-- Filter controls --}}
+      {{-- Filter controls --}}
+<form method="GET" action="{{ route('admin.scheduling.show', $contract->id) }}" id="jobFilterForm" class="row g-2 mb-3 align-items-end">
+    {{-- <div class="col-auto">
+        <label class="form-label small mb-1">Month</label>
+        <select name="month" class="form-select form-select-sm" style="width: 140px;">
+            <option value="">All Months</option>
+            @foreach([
+                1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
+                5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+                9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
+            ] as $num => $name)
+                <option value="{{ $num }}" {{ request('month') == $num ? 'selected' : '' }}>{{ $name }}</option>
+            @endforeach
+        </select>
+    </div> --}}
+    {{-- <div class="col-auto">
+        <label class="form-label small mb-1">Year</label>
+        <select name="year" class="form-select form-select-sm" style="width: 110px;">
+            <option value="">All Years</option>
+            @foreach($yearOptions as $year)
+                <option value="{{ $year }}" {{ request('year') == $year ? 'selected' : '' }}>{{ $year }}</option>
+            @endforeach
+        </select>
+    </div> --}}
+    {{-- <div class="col-auto text-center">
+        <span class="text-muted small">— or —</span>
+    </div> --}}
+    <div class="col-auto">
+        <label class="form-label small mb-1">From date</label>
+        <input type="date" name="from" class="form-control form-control-sm" value="{{ request('from') }}">
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-1">To date</label>
+        <input type="date" name="to" class="form-control form-control-sm" value="{{ request('to') }}">
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    </div>
+    @if($isFiltering)
+        <div class="col-auto">
+            <a href="{{ route('admin.scheduling.show', $contract->id) }}" class="btn btn-outline-secondary btn-sm">
+                <iconify-icon icon="solar:close-circle-outline"></iconify-icon> Reset to Default
+            </a>
+        </div>
+    @endif
+</form>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <p class="text-muted small mb-0">
+                    @if($isFiltering)
+                        Showing {{ $visibleJobs->count() }} of {{ $totalJobsCount }} total scheduled visits (filtered).
+                    @else
+                        Showing visits through {{ now()->format('F Y') }}
+                        ({{ $visibleJobs->count() }} of {{ $totalJobsCount }} total scheduled visits).
+                    @endif
+                </p>
+            </div>
 
             <div class="table-responsive">
                 <table class="table table-hover table-centered">
@@ -50,7 +109,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($contract->ppmJobs as $index => $job)
+                        @forelse ($visibleJobs as $index => $job)
                             <tr>
                                 <td>{{ $index + 1 }}</td>
                                 <td>{{ $job->scheduled_date->format('d M Y') }}</td>
@@ -62,14 +121,22 @@
                                             'in_progress' => 'badge-soft-info',
                                             'overdue' => 'badge-soft-danger',
                                             'cancelled' => 'badge-soft-secondary',
-                                            default => 'badge-soft-warning',
+                                            default => $job->scheduled_date->isPast() ? 'badge-soft-danger' : 'badge-soft-warning',
                                         };
+                                        $statusLabel = $job->status === 'pending' && $job->scheduled_date->isPast()
+                                            ? 'Overdue'
+                                            : ucfirst(str_replace('_', ' ', $job->status));
                                     @endphp
-                                    <span
-                                        class="badge {{ $statusClass }}">{{ ucfirst(str_replace('_', ' ', $job->status)) }}</span>
+                                    <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
                                 </td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">
+                                    {{ $isFiltering ? 'No visits found for this filter.' : 'No visits scheduled up to this month yet.' }}
+                                </td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
@@ -77,4 +144,25 @@
             <a href="{{ route('admin.scheduling.index') }}" class="btn btn-secondary mt-3">Back to List</a>
         </div>
     </div>
+
+    <script>
+      // If the user picks month/year, clear the from/to fields (mutually exclusive filter modes)
+document.querySelector('select[name="month"]').addEventListener('change', clearDateRange);
+document.querySelector('select[name="year"]').addEventListener('change', clearDateRange);
+
+function clearDateRange() {
+    document.querySelector('input[name="from"]').value = '';
+    document.querySelector('input[name="to"]').value = '';
+}
+
+// If the user types from/to, clear the month/year dropdowns
+['from', 'to'].forEach(name => {
+    document.querySelector(`input[name="${name}"]`).addEventListener('input', function() {
+        if (this.value) {
+            document.querySelector('select[name="month"]').value = '';
+            document.querySelector('select[name="year"]').value = '';
+        }
+    });
+});
+    </script>
 @endsection

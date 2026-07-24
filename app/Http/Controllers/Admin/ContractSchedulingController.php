@@ -16,43 +16,68 @@ use Illuminate\Validation\Rule;
 class ContractSchedulingController extends Controller
 {
     /**
-     * Admin dashboard: every engineer's contracts, grouped, with renewal indicators.
+     * Admin dashboard: every engineer's contracts, with current-month PPM status.
      */
-    public function index(Request $request)
-    {
-        $query = Contract::with(['engineer:id,name', 'route:id,route_no', 'supervisor:id,name', 'technician:id,name', 'renewals'])
-            ->where('status', 'active');
+public function index(Request $request)
+{
+    $query = Contract::with([
+            'engineer:id,name',
+            'route:id,route_no',
+            'supervisor:id,name',
+            'technician:id,name',
+            'renewals',
+            'ppmJobs' => function ($q) {
+                $q->whereYear('scheduled_date', now()->year)
+                  ->whereMonth('scheduled_date', now()->month)
+                  ->with('technician');
+            },
+        ])
+        ->where('status', 'active');
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('project_name', 'like', "%{$search}%")
-                    ->orWhere('location', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('engineer_id')) {
-            $query->where('assigned_engineer_id', $request->input('engineer_id'));
-        }
-
-        if ($request->filled('scheduled')) {
-            $query->where('is_scheduled', $request->input('scheduled') === 'yes');
-        }
-
-        $sortable = ['project_name', 'location'];
-        $sort = $request->get('sort', 'project_name');
-        $dir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
-        $query->orderBy(in_array($sort, $sortable) ? $sort : 'project_name', $dir);
-
-        $contracts = $query->paginate(20)->withQueryString();
-
-        $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
-
-        return view('admin.scheduling.index', compact('contracts', 'engineers', 'sort', 'dir'));
+    if ($request->filled('search')) {
+        $search = $request->input('search');
+        $query->where(function ($q) use ($search) {
+            $q->where('project_name', 'like', "%{$search}%")
+                ->orWhere('location', 'like', "%{$search}%");
+        });
     }
-    /**
-     * Form to pick a Supervisor + Technician (both scoped to the contract's route) and a PPM start date.
-     */
+
+    if ($request->filled('engineer_id')) {
+        $query->where('assigned_engineer_id', $request->input('engineer_id'));
+    }
+
+    if ($request->filled('scheduled')) {
+        $query->where('is_scheduled', $request->input('scheduled') === 'yes');
+    }
+
+    if ($request->filled('ppm_status')) {
+        $status = $request->input('ppm_status');
+        $query->whereHas('ppmJobs', function ($q) use ($status) {
+            $q->whereYear('scheduled_date', now()->year)
+              ->whereMonth('scheduled_date', now()->month);
+
+            if ($status === 'overdue') {
+                $q->where('status', 'pending')->whereDate('scheduled_date', '<', now()->toDateString());
+            } elseif ($status === 'pending') {
+                $q->where('status', 'pending')->whereDate('scheduled_date', '>=', now()->toDateString());
+            } elseif ($status === 'completed') {
+                $q->where('status', 'completed');
+            }
+        });
+    }
+
+    $sortable = ['project_name', 'location'];
+    $sort = $request->get('sort', 'project_name');
+    $dir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
+    $query->orderBy(in_array($sort, $sortable) ? $sort : 'project_name', $dir);
+
+    $contracts = $query->paginate(20)->withQueryString();
+
+    $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
+
+    return view('admin.scheduling.index', compact('contracts', 'engineers', 'sort', 'dir'));
+}
+
     public function create(Contract $contract)
     {
         if ($contract->is_scheduled) {
@@ -67,9 +92,6 @@ class ContractSchedulingController extends Controller
         return view('admin.scheduling.create', compact('contract', 'supervisors', 'technicians'));
     }
 
-    /**
-     * Generate the full monthly PPM schedule, assigning the chosen supervisor + technician.
-     */
     public function store(Request $request, Contract $contract)
     {
         if ($contract->is_scheduled) {
@@ -132,11 +154,44 @@ class ContractSchedulingController extends Controller
         ]);
     }
 
-    public function show(Contract $contract)
+    public function show(Request $request, Contract $contract)
     {
-        $contract->load(['engineer', 'route.users', 'supervisor', 'technician', 'ppmJobs.technician', 'renewals.renewedBy']);
+        $contract->load(['engineer', 'route.users', 'supervisor', 'technician', 'renewals.renewedBy']);
 
-        return view('admin.scheduling.show', compact('contract'));
+        $totalJobsCount = $contract->ppmJobs()->count();
+
+        $isFiltering = $request->filled('from') || $request->filled('to') || $request->filled('month') || $request->filled('year');
+
+        $query = $contract->ppmJobs()->with('technician')->orderBy('scheduled_date');
+
+        if ($request->filled('month') && $request->filled('year')) {
+            $query->whereYear('scheduled_date', $request->input('year'))
+                ->whereMonth('scheduled_date', $request->input('month'));
+        } elseif ($request->filled('year')) {
+            $query->whereYear('scheduled_date', $request->input('year'));
+        } elseif ($request->filled('from') || $request->filled('to')) {
+            if ($request->filled('from')) {
+                $query->where('scheduled_date', '>=', $request->input('from'));
+            }
+            if ($request->filled('to')) {
+                $query->where('scheduled_date', '<=', $request->input('to'));
+            }
+        } else {
+            // Default view per client spec: current month and everything before it
+            $query->where('scheduled_date', '<=', now()->endOfMonth());
+        }
+
+        $visibleJobs = $query->get();
+
+        // Year range for the dropdown, based on this contract's own schedule
+        $yearOptions = collect();
+        if ($contract->ppmJobs()->exists()) {
+            $minYear = $contract->ppmJobs()->min('scheduled_date');
+            $maxYear = $contract->ppmJobs()->max('scheduled_date');
+            $yearOptions = collect(range(Carbon::parse($minYear)->year, Carbon::parse($maxYear)->year));
+        }
+
+        return view('admin.scheduling.show', compact('contract', 'visibleJobs', 'totalJobsCount', 'isFiltering', 'yearOptions'));
     }
 
     private function generateMonthlyPpmJobs(Contract $contract, Carbon $startDate, ?int $technicianId): void
