@@ -82,6 +82,19 @@
                         </select>
                     </div>
 
+                    <div class="col-md-6 mb-3" id="shiftField" style="display:none;">
+    <label for="shift_id" class="form-label">Shift</label>
+    <select id="shift_id" name="shift_id" class="form-select">
+        <option value="">Select Shift</option>
+        @foreach($shifts as $shift)
+            <option value="{{ $shift->id }}">
+                {{ $shift->name }} ({{ \Carbon\Carbon::parse($shift->start_time)->format('h:i A') }} – {{ \Carbon\Carbon::parse($shift->end_time)->format('h:i A') }})
+            </option>
+        @endforeach
+    </select>
+    <div class="form-text">Used to calculate overtime automatically based on check-out time.</div>
+</div>
+
                     <div class="col-md-6 mb-3" id="supervisorField" style="display:none;">
                         <label for="supervisor_id" class="form-label">Reports to (Supervisor)</label>
                         <select id="supervisor_id" name="supervisor_id" class="form-select">
@@ -132,44 +145,43 @@
     </div>
 
     <script>
-        document.getElementById('type').addEventListener('change', function() {
-            const engineerField = document.getElementById('engineerField');
-            const supervisorField = document.getElementById('supervisorField');
-            const routesSection = document.getElementById('routesSection');
-            const routesHelp = document.getElementById('routesHelp');
-            const checkboxes = document.querySelectorAll('.route-checkbox');
+     document.getElementById('type').addEventListener('change', function() {
+    const engineerField = document.getElementById('engineerField');
+    const supervisorField = document.getElementById('supervisorField');
+    const shiftField = document.getElementById('shiftField');
+    const routesSection = document.getElementById('routesSection');
+    const routesHelp = document.getElementById('routesHelp');
+    const checkboxes = document.querySelectorAll('.route-checkbox');
 
-            engineerField.style.display = 'none';
-            supervisorField.style.display = 'none';
-            document.getElementById('engineer_id').value = '';
-            document.getElementById('supervisor_id').value = '';
+    engineerField.style.display = 'none';
+    supervisorField.style.display = 'none';
+    shiftField.style.display = 'none';
+    document.getElementById('engineer_id').value = '';
+    document.getElementById('supervisor_id').value = '';
 
-            checkboxes.forEach(cb => {
-                cb.checked = false;
-                cb.type = 'checkbox'; // reset back to checkbox by default
-            });
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+        cb.type = 'checkbox';
+    });
 
-            if (this.value === 'Supervisor') {
-                engineerField.style.display = 'block';
-            } else if (this.value === 'Technician') {
-                supervisorField.style.display = 'block';
-            }
+    if (this.value === 'Supervisor') {
+        engineerField.style.display = 'block';
+    } else if (this.value === 'Technician') {
+        supervisorField.style.display = 'block';
+        shiftField.style.display = 'block';
+    }
 
-            if (this.value === 'Engineer' || this.value === 'Supervisor') {
-                routesSection.style.display = 'block';
-                routesHelp.textContent = 'Select one or more routes this ' + this.value.toLowerCase() + ' covers.';
-            } else if (this.value === 'Technician') {
-                routesSection.style.display = 'block';
-                routesHelp.textContent = 'Select the single route this technician is assigned to.';
-                // Turn checkboxes into radio buttons so only one can be selected
-                checkboxes.forEach(cb => {
-                    cb.type = 'radio';
-                });
-            } else {
-                routesSection.style.display = 'none';
-            }
-        });
-
+    if (this.value === 'Engineer' || this.value === 'Supervisor') {
+        routesSection.style.display = 'block';
+        routesHelp.textContent = 'Select one or more routes this ' + this.value.toLowerCase() + ' covers.';
+    } else if (this.value === 'Technician') {
+        routesSection.style.display = 'block';
+        routesHelp.textContent = 'Select the single route this technician is assigned to.';
+        checkboxes.forEach(cb => { cb.type = 'radio'; });
+    } else {
+        routesSection.style.display = 'none';
+    }
+});
         document.getElementById('createTeamForm').addEventListener('submit', function(e) {
             e.preventDefault();
             let form = this;

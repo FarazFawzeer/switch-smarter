@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Route as RouteModel;
+use App\Models\Shift;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +18,7 @@ class TeamController extends Controller
 {
     public function index(Request $request)
     {
-        $view = $request->get('view', 'master'); // 'organization' or 'master'
+        $view = $request->get('view', 'master');
 
         $roleCounts = [
             'Manager'    => User::where('type', 'Manager')->count(),
@@ -28,7 +29,7 @@ class TeamController extends Controller
 
         if ($view === 'master') {
             $query = User::whereIn('type', ['Manager', 'Engineer', 'Supervisor', 'Technician'])
-                ->with(['supervisor:id,name', 'engineer:id,name', 'routes']);
+                ->with(['supervisor:id,name', 'engineer:id,name', 'routes', 'shift']);
 
             if ($request->filled('search')) {
                 $search = $request->input('search');
@@ -53,12 +54,11 @@ class TeamController extends Controller
             return view('admin.team.index', compact('team', 'view', 'roleCounts', 'sort', 'dir'));
         }
 
-        // ===== Organization view (unchanged logic) =====
         $isFiltering = $request->filled('search') || $request->filled('type');
 
         if ($isFiltering) {
             $query = User::whereIn('type', ['Manager', 'Engineer', 'Supervisor', 'Technician'])
-                ->with(['supervisor:id,name', 'engineer:id,name', 'routes']);
+                ->with(['supervisor:id,name', 'engineer:id,name', 'routes', 'shift']);
 
             if ($request->filled('search')) {
                 $search = $request->input('search');
@@ -85,7 +85,7 @@ class TeamController extends Controller
             ->with(['supervisors' => function ($q) {
                 $q->with(['routes'])
                     ->with(['technicians' => function ($tq) {
-                        $tq->with(['routes']);
+                        $tq->with(['routes', 'shift']);
                     }])
                     ->withCount('technicians');
             }])
@@ -105,13 +105,13 @@ class TeamController extends Controller
             404
         );
 
-        $team->load(['supervisor', 'engineer', 'routes']);
+        $team->load(['supervisor', 'engineer', 'routes', 'shift']);
 
         $reportees = collect();
         if ($team->type === 'Engineer') {
             $reportees = $team->supervisors()->with('routes')->withCount('technicians')->get();
         } elseif ($team->type === 'Supervisor') {
-            $reportees = $team->technicians()->with('routes')->get();
+            $reportees = $team->technicians()->with(['routes', 'shift'])->get();
         }
 
         return view('admin.team.show', compact('team', 'reportees'));
@@ -122,8 +122,9 @@ class TeamController extends Controller
         $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
         $supervisors = User::where('type', 'Supervisor')->select('id', 'name')->get();
         $routes = RouteModel::orderBy('route_no')->get();
+        $shifts = Shift::orderBy('start_time')->get();
 
-        return view('admin.team.create', compact('engineers', 'supervisors', 'routes'));
+        return view('admin.team.create', compact('engineers', 'supervisors', 'routes', 'shifts'));
     }
 
     public function store(Request $request)
@@ -150,6 +151,10 @@ class TeamController extends Controller
         }
 
         $data = $request->only(['name', 'employee_id', 'email', 'contact_no', 'type', 'engineer_id', 'supervisor_id']);
+
+        // Shift only applies to Technicians — ignore it for other roles even if sent
+        $data['shift_id'] = $request->input('type') === 'Technician' ? $request->input('shift_id') : null;
+
         $data['password'] = Hash::make($request->password);
 
         if ($request->hasFile('image_path')) {
@@ -187,8 +192,9 @@ class TeamController extends Controller
         $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
         $supervisors = User::where('type', 'Supervisor')->select('id', 'name')->get();
         $routes = RouteModel::orderBy('route_no')->get();
+        $shifts = Shift::orderBy('start_time')->get();
 
-        return view('admin.team.edit', compact('team', 'engineers', 'supervisors', 'routes'));
+        return view('admin.team.edit', compact('team', 'engineers', 'supervisors', 'routes', 'shifts'));
     }
 
     public function update(Request $request, User $team)
@@ -215,6 +221,9 @@ class TeamController extends Controller
         }
 
         $data = $request->only(['name', 'employee_id', 'email', 'contact_no', 'type', 'engineer_id', 'supervisor_id']);
+
+        // Shift only applies to Technicians — clear it if the role was changed away from Technician
+        $data['shift_id'] = $request->input('type') === 'Technician' ? $request->input('shift_id') : null;
 
         if ($request->hasFile('image_path')) {
             if ($team->image_path) {
@@ -266,10 +275,6 @@ class TeamController extends Controller
         ]);
     }
 
-    /**
-     * Shared validation for create and update. $ignoreUserId excludes the
-     * current user's own email/employee_id from the uniqueness check on update.
-     */
     private function validateTeamMember(Request $request, ?int $ignoreUserId = null)
     {
         $isUpdate = $ignoreUserId !== null;
@@ -301,13 +306,17 @@ class TeamController extends Controller
                 'required_if:type,Technician',
                 Rule::exists('users', 'id')->where(fn($q) => $q->where('type', 'Supervisor')),
             ],
+            'shift_id'      => [
+                'nullable',
+                'required_if:type,Technician',
+                Rule::exists('shifts', 'id'),
+            ],
             'image_path'    => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
             'routes'        => ['nullable', 'array'],
             'routes.*'      => ['integer', Rule::exists('routes', 'id')],
         ];
 
-        // Password is only required (and validated) when creating a new team member
         if (! $isUpdate) {
             $rules['password'] = ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'];
         }
@@ -321,6 +330,8 @@ class TeamController extends Controller
             'supervisor_id.required_if'  => 'Please select the supervisor this technician reports to.',
             'engineer_id.exists'         => 'The selected engineer is invalid.',
             'supervisor_id.exists'       => 'The selected supervisor is invalid.',
+            'shift_id.required_if'       => 'Please select a shift for this technician.',
+            'shift_id.exists'            => 'The selected shift is invalid.',
             'image_path.max'             => 'Profile image must not exceed 2MB.',
             'routes.*.exists'            => 'One or more selected routes are invalid.',
         ]);

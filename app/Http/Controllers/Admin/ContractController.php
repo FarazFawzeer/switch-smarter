@@ -20,8 +20,104 @@ class ContractController extends Controller
 {
     public function index(Request $request)
     {
-        $view = $request->get('view', 'list'); // list view shown first by default
+        $view = $request->get('view', 'list'); // 'grid' or 'list'
 
+        if ($view === 'grid') {
+            return $this->gridView($request);
+        }
+
+        return $this->listView($request);
+    }
+
+    /**
+     * List view: one row per elevator unit, with full contract context attached.
+     */
+    private function listView(Request $request)
+    {
+        $visibleContractIds = Contract::visibleTo(Auth::user())->pluck('id');
+
+        $query = \App\Models\ElevatorUnit::query()
+            ->join('contracts', 'contracts.id', '=', 'elevator_units.contract_id')
+            ->whereIn('elevator_units.contract_id', $visibleContractIds)
+            ->select('elevator_units.*', 'contracts.project_name', 'contracts.project_type', 'contracts.location',
+                'contracts.contract_number', 'contracts.route_id', 'contracts.assigned_engineer_id',
+                'contracts.contract_start_date', 'contracts.contract_end_date', 'contracts.status as contract_status')
+            ->with(['contract.route:id,route_no', 'contract.engineer:id,name']);
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('contracts.project_name', 'like', "%{$search}%")
+                    ->orWhere('contracts.location', 'like', "%{$search}%")
+                    ->orWhere('contracts.contract_number', 'like', "%{$search}%")
+                    ->orWhere('elevator_units.identification_no', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('contracts.status', $request->input('status'));
+        }
+
+        if ($request->filled('project_type')) {
+            $query->where('contracts.project_type', $request->input('project_type'));
+        }
+
+        if ($request->filled('engineer_id')) {
+            $query->where('contracts.assigned_engineer_id', $request->input('engineer_id'));
+        }
+
+        if ($request->filled('route_id')) {
+            $query->where('contracts.route_id', $request->input('route_id'));
+        }
+
+        if ($request->filled('unit_type')) {
+            $query->where('elevator_units.unit_type', $request->input('unit_type'));
+        }
+
+        if ($request->filled('elevator_type')) {
+            $query->where('elevator_units.elevator_type', $request->input('elevator_type'));
+        }
+
+        $sortable = [
+            'project_name'         => 'contracts.project_name',
+            'project_type'         => 'contracts.project_type',
+            'location'             => 'contracts.location',
+            'contract_number'      => 'contracts.contract_number',
+            'contract_start_date'  => 'contracts.contract_start_date',
+            'contract_end_date'    => 'contracts.contract_end_date',
+            'contract_status'      => 'contracts.status',
+            'identification_no'    => 'elevator_units.identification_no',
+            'unit_type'            => 'elevator_units.unit_type',
+            'brand'                => 'elevator_units.brand',
+        ];
+
+        $sort = $request->get('sort');
+        $dir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
+
+        if ($sort && array_key_exists($sort, $sortable)) {
+            $query->orderBy($sortable[$sort], $dir);
+        } else {
+            $query->orderBy('contracts.project_name')->orderBy('elevator_units.identification_no');
+        }
+
+        $units = $query->paginate(25)->withQueryString();
+
+        $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
+        $routes = \App\Models\Route::orderBy('route_no')->get();
+        $projectTypes = ['Residential', 'Commercial', 'Industrial', 'Hospital', 'Hotel', 'Mixed Use'];
+        $unitTypes = ['Elevator', 'Escalator', 'Dumbwaiter'];
+        $elevatorTypes = ['Passenger', 'Service', 'Freight'];
+
+        return view('admin.contracts.index', compact(
+            'units', 'engineers', 'routes', 'projectTypes', 'unitTypes', 'elevatorTypes', 'sort', 'dir'
+        ))->with('view', 'list');
+    }
+
+    /**
+     * Grid view: unchanged, still one card per contract.
+     */
+    private function gridView(Request $request)
+    {
         $query = Contract::with(['engineer:id,name', 'route:id,route_no', 'elevatorUnits'])
             ->visibleTo(Auth::user());
 
@@ -38,37 +134,10 @@ class ContractController extends Controller
             $query->where('status', $request->input('status'));
         }
 
-        if ($request->filled('project_type')) {
-            $query->where('project_type', $request->input('project_type'));
-        }
+        $contracts = $query->latest()->paginate(9)->withQueryString();
 
-        if ($request->filled('engineer_id')) {
-            $query->where('assigned_engineer_id', $request->input('engineer_id'));
-        }
-
-        if ($request->filled('route_id')) {
-            $query->where('route_id', $request->input('route_id'));
-        }
-
-        $sortable = ['project_name', 'project_type', 'location', 'contract_number', 'contract_start_date', 'contract_end_date', 'status'];
-        $sort = $request->get('sort');
-        $dir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
-
-        if ($sort && in_array($sort, $sortable)) {
-            $query->orderBy($sort, $dir);
-        } else {
-            $query->latest();
-        }
-
-        $contracts = $query->paginate($view === 'list' ? 25 : 9)->withQueryString();
-
-        $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
-        $routes = \App\Models\Route::orderBy('route_no')->get();
-        $projectTypes = ['Residential', 'Commercial', 'Industrial', 'Hospital', 'Hotel', 'Mixed Use'];
-
-        return view('admin.contracts.index', compact('contracts', 'view', 'engineers', 'routes', 'projectTypes', 'sort', 'dir'));
+        return view('admin.contracts.index', compact('contracts'))->with('view', 'grid');
     }
-
 
     public function show(Contract $contract)
     {
@@ -76,6 +145,7 @@ class ContractController extends Controller
 
         return view('admin.contracts.show', compact('contract'));
     }
+
     public function create()
     {
         $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
@@ -83,6 +153,7 @@ class ContractController extends Controller
 
         return view('admin.contracts.create', compact('engineers', 'routes'));
     }
+
     public function store(Request $request)
     {
         $validator = $this->validateContract($request);
@@ -197,9 +268,6 @@ class ContractController extends Controller
         DB::transaction(function () use ($contract, $data, $elevators) {
             $contract->update($data);
 
-            // Manual rows submitted here fully replace existing units.
-            // Units added separately via bulk import (on this same edit page) are untouched
-            // unless the admin also resubmits this main form's elevator rows.
             if (! empty($elevators)) {
                 $contract->elevatorUnits()->delete();
                 foreach ($elevators as $elevator) {
@@ -235,10 +303,6 @@ class ContractController extends Controller
         ]);
     }
 
-    /**
-     * Bulk import elevator units from an Excel/CSV file.
-     * Adds to existing units — does not remove what's already there.
-     */
     public function importElevatorUnits(Request $request, Contract $contract)
     {
         $validator = Validator::make($request->all(), [
@@ -268,9 +332,6 @@ class ContractController extends Controller
         ]);
     }
 
-    /**
-     * Show the renewal form — only reachable for expired contracts.
-     */
     public function renewForm(Contract $contract)
     {
         abort_unless($contract->status === 'expired' || $contract->contract_end_date->isPast(), 403);
@@ -278,9 +339,6 @@ class ContractController extends Controller
         return view('admin.contracts.renew', compact('contract'));
     }
 
-    /**
-     * Process a renewal: keep the same contract, log the old term, apply the new one.
-     */
     public function renew(Request $request, Contract $contract)
     {
         $validator = Validator::make($request->all(), [
@@ -309,7 +367,7 @@ class ContractController extends Controller
                 'contract_start_date' => $request->input('contract_start_date'),
                 'contract_end_date'   => $request->input('contract_end_date'),
                 'status'              => 'active',
-                'is_scheduled'        => false,   // allows PPM scheduling to run fresh for the new term
+                'is_scheduled'        => false,
                 'ppm_start_date'      => null,
             ]);
         });
@@ -321,10 +379,6 @@ class ContractController extends Controller
         ]);
     }
 
-    /**
-     * Builds a clean custom_fields array from parallel label/value input arrays,
-     * skipping any row where the label was left blank.
-     */
     private function buildCustomFields(array $labels, array $values): array
     {
         $fields = [];
@@ -338,9 +392,6 @@ class ContractController extends Controller
         return $fields;
     }
 
-    /**
-     * If "Other" was selected for project type, use the free-text value instead.
-     */
     private function applyProjectTypeOverride(Request $request, array $data): array
     {
         if (($data['project_type'] ?? null) === 'Other') {

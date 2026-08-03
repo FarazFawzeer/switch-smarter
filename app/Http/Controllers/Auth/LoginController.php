@@ -18,7 +18,15 @@ class LoginController extends Controller
 
         if (Auth::attempt($credentials, $request->filled('remember'))) {
             $request->session()->regenerate();
-            return redirect()->intended('/'); // redirect after login
+
+            $user = Auth::user();
+
+            // Technicians go straight to their own dashboard, never the admin area
+            if ($user->type === 'Technician') {
+                return redirect()->intended(route('technician.jobs.index'));
+            }
+
+            return redirect()->intended(route('dashboard'));
         }
 
         return back()->withErrors([

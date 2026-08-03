@@ -4,17 +4,53 @@
     @include('layouts.partials.page-title', ['title' => 'Team', 'subtitle' => $team->name])
 
     <style>
-        .tm-show-label { font-size: 12px; color: #8792a2; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
-        .tm-show-value { font-size: 14px; color: #16233b; font-weight: 500; }
-        .tm-show-card { border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(15,42,67,0.06); }
-        .tm-role-pill { display: inline-block; padding: 4px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; color: #fff; }
-        .tm-report-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
-        .tm-report-row + .tm-report-row { border-top: 1px solid #f0f1f4; }
+        .tm-show-label {
+            font-size: 12px;
+            color: #8792a2;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-bottom: 2px;
+        }
+
+        .tm-show-value {
+            font-size: 14px;
+            color: #16233b;
+            font-weight: 500;
+        }
+
+        .tm-show-card {
+            border: none;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(15, 42, 67, 0.06);
+        }
+
+        .tm-role-pill {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .tm-report-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+        }
+
+        .tm-report-row+.tm-report-row {
+            border-top: 1px solid #f0f1f4;
+        }
     </style>
 
     @php
         $roleColorMap = [
-            'Manager' => '#2E5AAC', 'Engineer' => '#17A2B8', 'Supervisor' => '#F0A202', 'Technician' => '#2E9E5B',
+            'Manager' => '#2E5AAC',
+            'Engineer' => '#17A2B8',
+            'Supervisor' => '#F0A202',
+            'Technician' => '#2E9E5B',
         ];
         $roleColor = $roleColorMap[$team->type] ?? '#8792a2';
     @endphp
@@ -25,7 +61,8 @@
             <div class="card tm-show-card">
                 <div class="card-body text-center">
                     <img src="{{ storage_asset($team->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
-                        alt="{{ $team->name }}" class="rounded-circle mb-3" style="width: 96px; height: 96px; object-fit: cover;">
+                        alt="{{ $team->name }}" class="rounded-circle mb-3"
+                        style="width: 96px; height: 96px; object-fit: cover;">
                     <h5 class="mb-1">{{ $team->name }}</h5>
                     <span class="tm-role-pill mb-3" style="background: {{ $roleColor }};">{{ $team->type }}</span>
 
@@ -41,6 +78,12 @@
                         <div class="mb-0">
                             <p class="tm-show-label mb-0">Contact No</p>
                             <p class="tm-show-value">{{ $team->contact_no ?: '—' }}</p>
+                            @if ($team->type === 'Technician')
+                                <p class="text-muted small mb-0">
+                                    <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
+                                    {{ optional($team->shift)->name ?? 'No shift assigned' }}
+                                </p>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -48,14 +91,17 @@
 
             {{-- Reports To --}}
             <div class="card tm-show-card">
-                <div class="card-header"><h6 class="card-title mb-0">Reports To</h6></div>
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Reports To</h6>
+                </div>
                 <div class="card-body">
-                    @if($team->type === 'Supervisor' && $team->engineer)
+                    @if ($team->type === 'Supervisor' && $team->engineer)
                         <div class="d-flex align-items-center gap-2">
                             <img src="{{ storage_asset($team->engineer->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                 class="avatar-sm rounded-circle">
                             <div>
-                                <a href="{{ route('admin.team.show', $team->engineer->id) }}" class="fw-semibold text-dark d-block">{{ $team->engineer->name }}</a>
+                                <a href="{{ route('admin.team.show', $team->engineer->id) }}"
+                                    class="fw-semibold text-dark d-block">{{ $team->engineer->name }}</a>
                                 <span class="small text-muted">Engineer</span>
                             </div>
                         </div>
@@ -64,19 +110,23 @@
                             <img src="{{ storage_asset($team->supervisor->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                 class="avatar-sm rounded-circle">
                             <div>
-                                <a href="{{ route('admin.team.show', $team->supervisor->id) }}" class="fw-semibold text-dark d-block">{{ $team->supervisor->name }}</a>
+                                <a href="{{ route('admin.team.show', $team->supervisor->id) }}"
+                                    class="fw-semibold text-dark d-block">{{ $team->supervisor->name }}</a>
                                 <span class="small text-muted">Supervisor</span>
                             </div>
                         </div>
                     @else
-                        <p class="text-muted small mb-0">This is a top-level role — does not report to anyone in the system.</p>
+                        <p class="text-muted small mb-0">This is a top-level role — does not report to anyone in the system.
+                        </p>
                     @endif
                 </div>
             </div>
 
             {{-- Routes --}}
             <div class="card tm-show-card">
-                <div class="card-header"><h6 class="card-title mb-0">Routes</h6></div>
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Routes</h6>
+                </div>
                 <div class="card-body">
                     @forelse($team->routes as $route)
                         <span class="badge badge-soft-secondary me-1 mb-1">{{ $route->route_no }}</span>
@@ -96,7 +146,7 @@
             <div class="card tm-show-card">
                 <div class="card-header">
                     <h6 class="card-title mb-0">
-                        @if($team->type === 'Engineer')
+                        @if ($team->type === 'Engineer')
                             Supervisors Under {{ $team->name }}
                         @elseif($team->type === 'Supervisor')
                             Technicians Under {{ $team->name }}
@@ -106,28 +156,29 @@
                     </h6>
                 </div>
                 <div class="card-body">
-                    @if($team->type === 'Engineer')
+                    @if ($team->type === 'Engineer')
                         @forelse($reportees as $supervisor)
                             <div class="tm-report-row justify-content-between">
                                 <div class="d-flex align-items-center gap-2">
                                     <img src="{{ storage_asset($supervisor->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                         class="avatar-sm rounded-circle">
                                     <div>
-                                        <a href="{{ route('admin.team.show', $supervisor->id) }}" class="fw-semibold text-dark d-block">{{ $supervisor->name }}</a>
+                                        <a href="{{ route('admin.team.show', $supervisor->id) }}"
+                                            class="fw-semibold text-dark d-block">{{ $supervisor->name }}</a>
                                         <div class="small text-muted">
                                             {{ $supervisor->employee_id ?? '—' }}
-                                            @foreach($supervisor->routes as $route)
+                                            @foreach ($supervisor->routes as $route)
                                                 <span class="badge badge-soft-secondary ms-1">{{ $route->route_no }}</span>
                                             @endforeach
                                         </div>
                                     </div>
                                 </div>
-                                <span class="badge badge-soft-secondary">{{ $supervisor->technicians_count }} technician(s)</span>
+                                <span class="badge badge-soft-secondary">{{ $supervisor->technicians_count }}
+                                    technician(s)</span>
                             </div>
                         @empty
                             <p class="text-muted small mb-0">No supervisors assigned to this engineer yet.</p>
                         @endforelse
-
                     @elseif($team->type === 'Supervisor')
                         @forelse($reportees as $technician)
                             <div class="tm-report-row justify-content-between">
@@ -135,11 +186,13 @@
                                     <img src="{{ storage_asset($technician->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                         class="avatar-sm rounded-circle">
                                     <div>
-                                        <a href="{{ route('admin.team.show', $technician->id) }}" class="fw-semibold text-dark d-block">{{ $technician->name }}</a>
+                                        <a href="{{ route('admin.team.show', $technician->id) }}"
+                                            class="fw-semibold text-dark d-block">{{ $technician->name }}</a>
                                         <div class="small text-muted">
                                             {{ $technician->employee_id ?? '—' }} · {{ $technician->email }}
-                                            @if($technician->routes->first())
-                                                <span class="badge badge-soft-secondary ms-1">{{ $technician->routes->first()->route_no }}</span>
+                                            @if ($technician->routes->first())
+                                                <span
+                                                    class="badge badge-soft-secondary ms-1">{{ $technician->routes->first()->route_no }}</span>
                                             @endif
                                         </div>
                                     </div>
@@ -148,7 +201,6 @@
                         @empty
                             <p class="text-muted small mb-0">No technicians assigned to this supervisor yet.</p>
                         @endforelse
-
                     @else
                         <p class="text-muted small mb-0">
                             {{ $team->type === 'Technician' ? 'Technicians do not manage other team members.' : 'This role oversees the whole organization.' }}

@@ -13,6 +13,9 @@ use App\Http\Controllers\Admin\SiteController;
 use App\Http\Controllers\Admin\JobController;
 use App\Http\Controllers\Admin\ContractSchedulingController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Technician\TechnicianJobController;
+use App\Http\Controllers\Admin\JobTrackingController;
+use App\Http\Controllers\Admin\AttendanceController;
 
 require __DIR__ . '/auth.php';
 
@@ -24,7 +27,7 @@ Route::get('/media/{path}', [FileController::class, 'show'])
     ->where('path', '.*')
     ->name('media.show');
 
-Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'no.cache'])->group(function () {
 
     // system admins
     Route::resource('users', UserController::class);
@@ -53,12 +56,30 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
- Route::prefix('scheduling')->name('scheduling.')->group(function () {
-    Route::get('/', [ContractSchedulingController::class, 'index'])->name('index');
-    Route::get('/{contract}/create', [ContractSchedulingController::class, 'create'])->name('create');
-    Route::post('/{contract}', [ContractSchedulingController::class, 'store'])->name('store');
-    Route::get('/{contract}', [ContractSchedulingController::class, 'show'])->name('show');
+    Route::prefix('scheduling')->name('scheduling.')->group(function () {
+        Route::get('/', [ContractSchedulingController::class, 'index'])->name('index');
+        Route::get('/{contract}/create', [ContractSchedulingController::class, 'create'])->name('create');
+        Route::post('/{contract}', [ContractSchedulingController::class, 'store'])->name('store');
+        Route::get('/{contract}', [ContractSchedulingController::class, 'show'])->name('show');
+    });
+
+    Route::prefix('tracking')->name('tracking.')->group(function () {
+        Route::get('/', [JobTrackingController::class, 'index'])->name('index');
+        Route::get('/{job}', [JobTrackingController::class, 'show'])->name('show');
+    });
+
+    Route::prefix('attendance')->name('attendance.')->group(function () {
+        Route::get('/', [AttendanceController::class, 'index'])->name('index');
+    });
 });
+
+Route::prefix('technician')->name('technician.')->middleware(['auth', 'only.technician', 'no.cache'])->group(function () {
+    Route::get('/jobs', [TechnicianJobController::class, 'index'])->name('jobs.index');
+    Route::get('/jobs/{job}', [TechnicianJobController::class, 'show'])->name('jobs.show');
+    Route::post('/jobs/{job}/check-in', [TechnicianJobController::class, 'checkIn'])->name('jobs.check-in');
+    Route::post('/jobs/{job}/complete', [TechnicianJobController::class, 'complete'])->name('jobs.complete');
+    Route::get('/timesheet', [TechnicianJobController::class, 'timesheet'])->name('timesheet');
+    Route::get('/jobs-list', [TechnicianJobController::class, 'list'])->name('jobs.list');
 });
 
 Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {

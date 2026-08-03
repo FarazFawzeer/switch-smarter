@@ -12,6 +12,7 @@ class JobRecord extends Model
     protected $fillable = [
         'site_id',
         'contract_id',
+        'elevator_unit_id',
         'job_type',
         'scheduled_date',
         'assigned_technician_id',
@@ -21,13 +22,22 @@ class JobRecord extends Model
         'priority',
         'description',
         'completed_at',
+        'check_in_time',
+        'check_in_lat',
+        'check_in_lng',
+        'check_out_time',
+        'check_out_lat',
+        'check_out_lng',
+        'completion_photo',
+        'work_notes',
     ];
 
     protected $casts = [
-        'scheduled_date' => 'date',
-        'completed_at'   => 'datetime',
+        'scheduled_date'  => 'date',
+        'completed_at'    => 'datetime',
+        'check_in_time'   => 'datetime',
+        'check_out_time'  => 'datetime',
     ];
-
     public function site(): BelongsTo
     {
         return $this->belongsTo(Site::class);
@@ -36,6 +46,11 @@ class JobRecord extends Model
     public function contract(): BelongsTo
     {
         return $this->belongsTo(Contract::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ElevatorUnit::class, 'elevator_unit_id');
     }
 
     public function technician(): BelongsTo

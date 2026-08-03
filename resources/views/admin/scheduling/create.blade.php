@@ -30,15 +30,17 @@
                 </div>
             </div>
 
-            @if(!$contract->route)
+            @if (!$contract->route)
                 <div class="alert alert-warning d-flex align-items-center gap-2">
                     <iconify-icon icon="solar:danger-triangle-outline" style="font-size: 20px;"></iconify-icon>
-                    <div>This project has no route assigned. Add one from the project's Edit page first — a route is what links this project to a supervisor and technician.</div>
+                    <div>This project has no route assigned. Add one from the project's Edit page first — a route is what
+                        links this project to a supervisor and technician.</div>
                 </div>
             @elseif($supervisors->isEmpty() && $technicians->isEmpty())
                 <div class="alert alert-warning d-flex align-items-center gap-2">
                     <iconify-icon icon="solar:danger-triangle-outline" style="font-size: 20px;"></iconify-icon>
-                    <div>No supervisor or technician is assigned to route <strong>{{ $contract->route->route_no }}</strong> yet. Add them in Team management, or continue and assign them later.</div>
+                    <div>No supervisor or technician is assigned to route <strong>{{ $contract->route->route_no }}</strong>
+                        yet. Add them in Team management, or continue and assign them later.</div>
                 </div>
             @endif
 
@@ -50,17 +52,18 @@
                         <label class="form-label">Supervisor</label>
                         <select name="assigned_supervisor_id" class="form-select">
                             <option value="">Not assigned yet</option>
-                            @foreach($supervisors as $supervisor)
+                            @foreach ($supervisors as $supervisor)
                                 <option value="{{ $supervisor->id }}">{{ $supervisor->name }}</option>
                             @endforeach
                         </select>
-                        <div class="form-text">Only supervisors covering route {{ optional($contract->route)->route_no ?? '—' }} are shown.</div>
+                        <div class="form-text">Only supervisors covering route
+                            {{ optional($contract->route)->route_no ?? '—' }} are shown.</div>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Technician</label>
                         <select name="assigned_technician_id" class="form-select">
                             <option value="">Not assigned yet</option>
-                            @foreach($technicians as $technician)
+                            @foreach ($technicians as $technician)
                                 <option value="{{ $technician->id }}">{{ $technician->name }}</option>
                             @endforeach
                         </select>
@@ -76,8 +79,38 @@
                             max="{{ $contract->contract_end_date->format('Y-m-d') }}" required>
                         <div class="form-text">
                             Must be after the contract start date ({{ $contract->contract_start_date->format('d M Y') }}).
-                            The first visit happens on this date, then repeats every month on the same day until the contract ends.
+                            The first visit happens on this date, then repeats every month on the same day until the
+                            contract ends.
                         </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label">Elevator Units to Schedule</label>
+                        <div class="form-text mb-2">All units are selected by default. Uncheck any you don't want included
+                            in this schedule.</div>
+
+                        @if ($units->isEmpty())
+                            <div class="alert alert-warning py-2 px-3 mb-0">
+                                This contract has no elevator units recorded yet. Add units from the contract's Edit page
+                                before scheduling.
+                            </div>
+                        @else
+                            <div class="border rounded p-2">
+                                @foreach ($units as $unit)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="unit_ids[]"
+                                            value="{{ $unit->id }}" id="unit-{{ $unit->id }}" checked>
+                                        <label class="form-check-label" for="unit-{{ $unit->id }}">
+                                            <strong>{{ $unit->identification_no }}</strong>
+                                            <span class="text-muted"> —
+                                                {{ $unit->unit_type }}{{ $unit->brand ? ' · ' . $unit->brand : '' }}</span>
+                                        </label>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
                     </div>
                 </div>
 
@@ -107,14 +140,17 @@
                     let messageBox = document.getElementById('message');
                     if (data.success) {
                         messageBox.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
-                        setTimeout(() => { window.location.href = data.redirect; }, 1200);
+                        setTimeout(() => {
+                            window.location.href = data.redirect;
+                        }, 1200);
                     } else {
                         let errors = Object.values(data.errors).flat().join('<br>');
                         messageBox.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
                     }
                 })
                 .catch(error => {
-                    document.getElementById('message').innerHTML = `<div class="alert alert-danger">Error: ${error}</div>`;
+                    document.getElementById('message').innerHTML =
+                        `<div class="alert alert-danger">Error: ${error}</div>`;
                 });
         });
     </script>

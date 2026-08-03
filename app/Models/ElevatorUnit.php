@@ -26,4 +26,9 @@ class ElevatorUnit extends Model
     {
         return $this->belongsTo(Contract::class);
     }
+
+    public function ppmJobs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(JobRecord::class, 'elevator_unit_id')->where('job_type', 'ppm');
+    }
 }

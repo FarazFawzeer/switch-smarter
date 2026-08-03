@@ -180,6 +180,7 @@
                         <th>Route</th>
                         <th>Supervisor</th>
                         <th>Technician</th>
+                        <th>Units</th>
                         <th>PPM Schedule Date</th>
                         <th>PPM Status</th>
                         <th>Overdue</th>
@@ -190,31 +191,42 @@
                 <tbody>
                     @forelse($contracts as $contract)
                         @php
-                            $currentJob = $contract->ppmJobs->first();
+                            $currentJobs = $contract->ppmJobs; // eager loaded, filtered to this month, with unit + technician
+                            $totalUnits = $contract->elevatorUnits->count();
+                            $scheduledUnits = $currentJobs->count();
 
-                            $ppmStatusLabel = 'None';
-                            $ppmStatusClass = 'none';
-                            $overdueDays = null;
+                            $completedCount = $currentJobs->where('status', 'completed')->count();
+                            $overdueJobs = $currentJobs->filter(function ($job) {
+                                return in_array($job->status, ['pending', 'overdue']) &&
+                                    $job->scheduled_date
+                                        ->copy()
+                                        ->startOfDay()
+                                        ->lt(now()->copy()->startOfDay());
+                            });
+                            $overdueCount = $overdueJobs->count();
+                            $pendingCount = $scheduledUnits - $completedCount - $overdueCount;
 
-                            if ($currentJob) {
-                                $scheduledDate = $currentJob->scheduled_date->copy()->startOfDay();
-                                $today = now()->copy()->startOfDay();
-
-                                if ($currentJob->status === 'completed') {
-                                    $ppmStatusLabel = 'Completed';
-                                    $ppmStatusClass = 'completed';
-                                } elseif (
-                                    in_array($currentJob->status, ['pending', 'overdue']) &&
-                                    $scheduledDate->lt($today)
-                                ) {
-                                    $ppmStatusLabel = 'Overdue';
-                                    $ppmStatusClass = 'overdue';
-                                    $overdueDays = (int) $scheduledDate->diffInDays($today);
-                                } else {
-                                    $ppmStatusLabel = 'Pending';
-                                    $ppmStatusClass = 'pending';
-                                }
+                            if ($scheduledUnits === 0) {
+                                $ppmStatusLabel = 'None';
+                                $ppmStatusClass = 'none';
+                            } elseif ($overdueCount > 0) {
+                                $ppmStatusLabel = "Overdue ({$overdueCount}/{$scheduledUnits})";
+                                $ppmStatusClass = 'overdue';
+                                $maxOverdueDays = $overdueJobs->max(
+                                    fn($job) => (int) $job->scheduled_date
+                                        ->copy()
+                                        ->startOfDay()
+                                        ->diffInDays(now()->copy()->startOfDay()),
+                                );
+                            } elseif ($completedCount === $scheduledUnits) {
+                                $ppmStatusLabel = 'Completed';
+                                $ppmStatusClass = 'completed';
+                            } else {
+                                $ppmStatusLabel = "Pending ({$completedCount}/{$scheduledUnits})";
+                                $ppmStatusClass = 'pending';
                             }
+
+                            $scheduleDateDisplay = $currentJobs->first()?->scheduled_date?->format('d M Y') ?? '—';
                         @endphp
                         <tr>
                             <td>
@@ -239,24 +251,18 @@
                             </td>
                             <td>{{ optional($contract->supervisor)->name ?? '—' }}</td>
                             <td>{{ optional($contract->technician)->name ?? '—' }}</td>
-                            <td>
-                                @if ($currentJob)
-                                    {{ $currentJob->scheduled_date->format('d M Y') }}
-                                @else
-                                    <span class="sc-chain-empty">—</span>
-                                @endif
-                            </td>
+                            <td>{{ $scheduledUnits }} / {{ $totalUnits }}</td>
+                          <td>{{ $scheduleDateDisplay }}</td>
                             <td>
                                 <span class="sc-pill {{ $ppmStatusClass }}">{{ $ppmStatusLabel }}</span>
                             </td>
-                            <td>
-                                @if ($overdueDays !== null)
-                                    <span class="sc-overdue-text">{{ $overdueDays }}
-                                        day{{ $overdueDays == 1 ? '' : 's' }} overdue</span>
-                                @else
-                                    <span class="sc-chain-empty">—</span>
-                                @endif
-                            </td>
+                        <td>
+    @if(isset($maxOverdueDays))
+        <span class="sc-overdue-text">{{ $maxOverdueDays }} day{{ $maxOverdueDays == 1 ? '' : 's' }} overdue</span>
+    @else
+        <span class="sc-chain-empty">—</span>
+    @endif
+</td>
                             <td>
                                 @if ($contract->is_scheduled)
                                     <span class="sc-pill scheduled">Scheduled</span>

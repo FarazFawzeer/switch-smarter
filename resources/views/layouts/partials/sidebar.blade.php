@@ -79,6 +79,24 @@
                 </a>
             </li>
 
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('admin.tracking.index') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:map-point-outline"></iconify-icon>
+                    </span>
+                    <span class="nav-text"> Job Tracking</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('admin.attendance.index') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
+                    </span>
+                    <span class="nav-text"> Attendance</span>
+                </a>
+            </li>
+
             {{-- <li class="nav-item">
                 <a class="nav-link menu-arrow" href="#sidebarSites" data-bs-toggle="collapse" role="button"
                     aria-expanded="false" aria-controls="sidebarSites">
