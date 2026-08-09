@@ -42,8 +42,11 @@
 </header>
 
 <div class="tech-bottomnav">
-    <a href="{{ route('technician.jobs.index') }}" class="{{ request()->routeIs('technician.jobs.*') ? 'active' : '' }}">
+    <a href="{{ route('technician.jobs.index') }}" class="{{ request()->routeIs('technician.jobs.index') ? 'active' : '' }}">
         <iconify-icon icon="solar:clipboard-list-outline"></iconify-icon> My Jobs
+    </a>
+    <a href="{{ route('technician.jobs.find-unit') }}" class="{{ request()->routeIs('technician.jobs.find-unit') ? 'active' : '' }}">
+        <iconify-icon icon="solar:magnifer-outline"></iconify-icon> Find Unit
     </a>
     <a href="{{ route('technician.timesheet') }}" class="{{ request()->routeIs('technician.timesheet') ? 'active' : '' }}">
         <iconify-icon icon="solar:clock-circle-outline"></iconify-icon> Timesheet

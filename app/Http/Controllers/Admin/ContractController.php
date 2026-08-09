@@ -39,9 +39,18 @@ class ContractController extends Controller
         $query = \App\Models\ElevatorUnit::query()
             ->join('contracts', 'contracts.id', '=', 'elevator_units.contract_id')
             ->whereIn('elevator_units.contract_id', $visibleContractIds)
-            ->select('elevator_units.*', 'contracts.project_name', 'contracts.project_type', 'contracts.location',
-                'contracts.contract_number', 'contracts.route_id', 'contracts.assigned_engineer_id',
-                'contracts.contract_start_date', 'contracts.contract_end_date', 'contracts.status as contract_status')
+            ->select(
+                'elevator_units.*',
+                'contracts.project_name',
+                'contracts.project_type',
+                'contracts.location',
+                'contracts.contract_number',
+                'contracts.route_id',
+                'contracts.assigned_engineer_id',
+                'contracts.contract_start_date',
+                'contracts.contract_end_date',
+                'contracts.status as contract_status'
+            )
             ->with(['contract.route:id,route_no', 'contract.engineer:id,name']);
 
         if ($request->filled('search')) {
@@ -109,7 +118,14 @@ class ContractController extends Controller
         $elevatorTypes = ['Passenger', 'Service', 'Freight'];
 
         return view('admin.contracts.index', compact(
-            'units', 'engineers', 'routes', 'projectTypes', 'unitTypes', 'elevatorTypes', 'sort', 'dir'
+            'units',
+            'engineers',
+            'routes',
+            'projectTypes',
+            'unitTypes',
+            'elevatorTypes',
+            'sort',
+            'dir'
         ))->with('view', 'list');
     }
 
@@ -149,10 +165,13 @@ class ContractController extends Controller
     public function create()
     {
         $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
-        $routes = \App\Models\Route::orderBy('route_no')->get();
+        $routes = \App\Models\Route::with(['users' => fn($q) => $q->where('type', 'Engineer')])
+            ->orderBy('route_no')
+            ->get();
 
         return view('admin.contracts.create', compact('engineers', 'routes'));
     }
+
 
     public function store(Request $request)
     {
@@ -221,7 +240,9 @@ class ContractController extends Controller
     {
         $contract->load('elevatorUnits');
         $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
-        $routes = \App\Models\Route::orderBy('route_no')->get();
+        $routes = \App\Models\Route::with(['users' => fn($q) => $q->where('type', 'Engineer')])
+            ->orderBy('route_no')
+            ->get();
 
         return view('admin.contracts.edit', compact('contract', 'engineers', 'routes'));
     }

@@ -155,9 +155,10 @@
             </select>
         </div>
         <div class="col-auto">
-            <select name="scheduled" class="form-select filter-auto" style="width: 150px;">
+            <select name="scheduled" class="form-select filter-auto" style="width: 170px;">
                 <option value="">All Contracts</option>
-                <option value="yes" {{ request('scheduled') == 'yes' ? 'selected' : '' }}>Scheduled</option>
+                <option value="yes" {{ request('scheduled') == 'yes' ? 'selected' : '' }}>Fully Scheduled</option>
+                <option value="partial" {{ request('scheduled') == 'partial' ? 'selected' : '' }}>Partially Scheduled</option>
                 <option value="no" {{ request('scheduled') == 'no' ? 'selected' : '' }}>Not Scheduled</option>
             </select>
         </div>
@@ -227,6 +228,16 @@
                             }
 
                             $scheduleDateDisplay = $currentJobs->first()?->scheduled_date?->format('d M Y') ?? '—';
+
+                            // Contract-level scheduling status (computed by the controller) — replaces the old
+                            // plain is_scheduled boolean, since a contract can now be partially scheduled.
+                            $statusLabelMap = [
+                                'not_scheduled' => ['Not Scheduled', 'pending'],
+                                'partial'       => ['Partially Scheduled', 'pending'],
+                                'complete'      => ['Scheduled', 'scheduled'],
+                                'no_units'      => ['No Units', 'none'],
+                            ];
+                            [$contractStatusLabel, $contractStatusClass] = $statusLabelMap[$contract->scheduling_status] ?? ['Unknown', 'none'];
                         @endphp
                         <tr>
                             <td>
@@ -251,27 +262,23 @@
                             </td>
                             <td>{{ optional($contract->supervisor)->name ?? '—' }}</td>
                             <td>{{ optional($contract->technician)->name ?? '—' }}</td>
-                            <td>{{ $scheduledUnits }} / {{ $totalUnits }}</td>
-                          <td>{{ $scheduleDateDisplay }}</td>
+                            <td>{{ $contract->scheduled_units_count ?? $scheduledUnits }} / {{ $contract->total_units_count ?? $totalUnits }}</td>
+                            <td>{{ $scheduleDateDisplay }}</td>
                             <td>
                                 <span class="sc-pill {{ $ppmStatusClass }}">{{ $ppmStatusLabel }}</span>
                             </td>
-                        <td>
-    @if(isset($maxOverdueDays))
-        <span class="sc-overdue-text">{{ $maxOverdueDays }} day{{ $maxOverdueDays == 1 ? '' : 's' }} overdue</span>
-    @else
-        <span class="sc-chain-empty">—</span>
-    @endif
-</td>
                             <td>
-                                @if ($contract->is_scheduled)
-                                    <span class="sc-pill scheduled">Scheduled</span>
+                                @if(isset($maxOverdueDays))
+                                    <span class="sc-overdue-text">{{ $maxOverdueDays }} day{{ $maxOverdueDays == 1 ? '' : 's' }} overdue</span>
                                 @else
-                                    <span class="sc-pill pending">Not Scheduled</span>
+                                    <span class="sc-chain-empty">—</span>
                                 @endif
                             </td>
+                            <td>
+                                <span class="sc-pill {{ $contractStatusClass }}">{{ $contractStatusLabel }}</span>
+                            </td>
                             <td class="text-center">
-                                @if ($contract->is_scheduled)
+                                @if ($contract->scheduling_status === 'complete')
                                     <a href="{{ route('admin.scheduling.show', $contract->id) }}"
                                         class="btn btn-sm btn-outline-primary">
                                         View
@@ -286,7 +293,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="text-center text-muted py-5">
+                            <td colspan="11" class="text-center text-muted py-5">
                                 <iconify-icon icon="solar:calendar-mark-outline"
                                     style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                                 <p class="mb-0 mt-2">No active projects found.</p>

@@ -130,4 +130,12 @@ class Contract extends Model
             ->whereMonth('scheduled_date', now()->month)
             ->latestOfMany('scheduled_date');
     }
+
+    public function scheduledUnitsCount(): int
+    {
+        return $this->ppmJobs()
+            ->whereNotNull('elevator_unit_id')
+            ->distinct('elevator_unit_id')
+            ->count('elevator_unit_id');
+    }
 }

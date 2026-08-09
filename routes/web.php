@@ -16,10 +16,13 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Technician\TechnicianJobController;
 use App\Http\Controllers\Admin\JobTrackingController;
 use App\Http\Controllers\Admin\AttendanceController;
+use App\Http\Controllers\Admin\RouteController;
+use App\Http\Controllers\Admin\TimesheetApprovalController;
+use App\Http\Controllers\Admin\MonthlyMaintenanceController;
 
 require __DIR__ . '/auth.php';
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'not.technician'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 });
 
@@ -52,6 +55,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
     Route::post('customers', [CustomerController::class, 'store'])->name('customers.store');
     Route::delete('customers/{customer}', [CustomerController::class, 'destroy'])->name('customers.destroy');
 
+    Route::post('routes/quick-create', [RouteController::class, 'quickStore'])->name('routes.quick-store');
+
+    Route::get('monthly-maintenance', [MonthlyMaintenanceController::class, 'index'])->name('monthly-maintenance.index');
+
     //profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -71,6 +78,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
     Route::prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/', [AttendanceController::class, 'index'])->name('index');
     });
+
+    Route::prefix('timesheet-approval')->name('timesheet-approval.')->group(function () {
+        Route::get('/', [TimesheetApprovalController::class, 'index'])->name('index');
+        Route::post('/{attendance}/approve', [TimesheetApprovalController::class, 'approve'])->name('approve');
+        Route::post('/{attendance}/reject', [TimesheetApprovalController::class, 'reject'])->name('reject');
+    });
 });
 
 Route::prefix('technician')->name('technician.')->middleware(['auth', 'only.technician', 'no.cache'])->group(function () {
@@ -80,6 +93,8 @@ Route::prefix('technician')->name('technician.')->middleware(['auth', 'only.tech
     Route::post('/jobs/{job}/complete', [TechnicianJobController::class, 'complete'])->name('jobs.complete');
     Route::get('/timesheet', [TechnicianJobController::class, 'timesheet'])->name('timesheet');
     Route::get('/jobs-list', [TechnicianJobController::class, 'list'])->name('jobs.list');
+    Route::get('/find-unit', [TechnicianJobController::class, 'findUnit'])->name('jobs.find-unit');
+    Route::get('/search-unit', [TechnicianJobController::class, 'searchUnit'])->name('jobs.search-unit');
 });
 
 Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {

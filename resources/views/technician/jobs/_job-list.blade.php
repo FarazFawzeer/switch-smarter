@@ -9,7 +9,7 @@
         [$color, $label] = $isOverdue ? ['#D64545', 'Overdue'] : ($statusMap[$job->status] ?? ['#8792a2', ucfirst($job->status)]);
     @endphp
     <a href="{{ route('technician.jobs.show', $job->id) }}" class="text-decoration-none">
-        <div class="card mb-2" style="">
+        <div class="card mb-2" style="border-left: 4px solid {{ $color }};">
             <div class="card-body py-3">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
@@ -30,9 +30,9 @@
         <iconify-icon icon="solar:calendar-mark-outline" style="font-size: 40px; opacity: 0.4;"></iconify-icon>
         <p class="mt-2 mb-0">
             @if(request('unit_search'))
-                No jobs found for unit "{{ request('unit_search') }}" in this period.
+                No jobs found for unit "{{ request('unit_search') }}" this month.
             @else
-                No jobs assigned for this period.
+                No jobs assigned for this month.
             @endif
         </p>
     </div>

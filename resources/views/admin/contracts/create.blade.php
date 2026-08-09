@@ -20,8 +20,7 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Project Name</label>
-                        <input type="text" name="project_name" class="form-control" placeholder="Ex: Liberty Plaza"
-                            required>
+                        <input type="text" name="project_name" class="form-control" placeholder="Ex: Liberty Plaza" required>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Project Type</label>
@@ -60,7 +59,7 @@
                         <label class="form-label">Number of Elevators / Units</label>
                         <input type="number" id="number_of_elevators" name="number_of_elevators" class="form-control"
                             min="0" max="200" value="1" required>
-                        <div class="form-text">If this is a large contract (50+ units), save with a few units now and use
+                        <div class="form-text">For large contracts (50+ units), save with a few units now and use
                             <strong>Bulk Import</strong> on the edit page afterward.</div>
                     </div>
                     <div class="col-md-8 mb-3">
@@ -84,8 +83,7 @@
                     <iconify-icon icon="solar:widget-5-outline" style="margin-right:6px;"></iconify-icon>
                     Elevator / Unit Details
                 </h5>
-                <p class="card-subtitle">Fill in the details for each unit. This updates automatically based on the number
-                    entered above.</p>
+                <p class="card-subtitle">Fill in the details for each unit. This updates automatically based on the number entered above.</p>
             </div>
             <div class="card-body" id="elevatorUnitsContainer">
                 {{-- JS injects one block per unit here --}}
@@ -105,27 +103,39 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Route</label>
-                        <select name="route_id" class="form-select mb-2">
-                            <option value="">No route yet / assign later</option>
-                            @foreach ($routes as $route)
-                                <option value="{{ $route->id }}">
-                                    {{ $route->route_no }}{{ $route->description ? ' — ' . $route->description : '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <input type="text" name="new_route_no" class="form-control"
-                            placeholder="Or type a new route, e.g. RT-06">
-                        <div class="form-text">Only fill this in if the route doesn't already exist in the list above.
+                        <div class="d-flex gap-2 mb-2">
+                            <select id="route_id" name="route_id" class="form-select">
+                                <option value="">No route yet / assign later</option>
+                                @foreach($routes as $route)
+                                    <option value="{{ $route->id }}" data-engineer="{{ optional($route->users->first())->name ?? '' }}">
+                                        {{ $route->route_no }}{{ $route->description ? ' — '.$route->description : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <button type="button" class="btn btn-outline-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#newRouteModal">
+                                <iconify-icon icon="solar:add-circle-outline"></iconify-icon> New
+                            </button>
+                        </div>
+
+                        <input type="text" name="new_route_no" class="form-control" placeholder="Or type a new route, e.g. RT-06" style="display:none;">
+
+                        <div id="routeEngineerDisplay" class="form-text" style="display:none;">
+                            <iconify-icon icon="solar:user-check-outline"></iconify-icon> Engineer: <strong id="routeEngineerName"></strong>
+                        </div>
+                        <div class="form-text" id="noRouteEngineerText" style="display:none;">
+                            No engineer is assigned to this route yet.
                         </div>
                     </div>
+
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Engineer</label>
-                        <select name="assigned_engineer_id" class="form-select" required>
+                        <select name="assigned_engineer_id" id="assigned_engineer_id" class="form-select" required>
                             <option value="">Select Engineer</option>
-                            @foreach ($engineers as $engineer)
+                            @foreach($engineers as $engineer)
                                 <option value="{{ $engineer->id }}">{{ $engineer->name }}</option>
                             @endforeach
                         </select>
+                        <div class="form-text">Auto-fills based on the route's assigned engineer — you can still change it manually.</div>
                     </div>
                 </div>
             </div>
@@ -137,11 +147,46 @@
         </div>
     </form>
 
+    {{-- New Route modal --}}
+    <div class="modal fade" id="newRouteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Route</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="newRouteMessage"></div>
+                    <div class="mb-3">
+                        <label class="form-label">Route Number</label>
+                        <input type="text" id="modal_route_no" class="form-control" placeholder="Ex: RT-06" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description <span class="text-muted">(optional)</span></label>
+                        <input type="text" id="modal_route_description" class="form-control" placeholder="Ex: Nugegoda / Maharagama zone">
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label">Assign Engineer <span class="text-muted">(optional)</span></label>
+                        <select id="modal_route_engineer" class="form-select">
+                            <option value="">Assign later</option>
+                            @foreach($engineers as $engineer)
+                                <option value="{{ $engineer->id }}">{{ $engineer->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="saveNewRouteBtn" class="btn btn-primary">Create Route</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Template for one custom field row (reused for both contract-level and per-unit fields) --}}
     <template id="customFieldTemplate">
         <div class="d-flex gap-2 mb-2 custom-field-row">
-            <input type="text" class="form-control custom-field-label"
-                placeholder="Field name (e.g. Building Manager)">
+            <input type="text" class="form-control custom-field-label" placeholder="Field name (e.g. Building Manager)">
             <input type="text" class="form-control custom-field-value" placeholder="Value">
             <button type="button" class="btn btn-outline-danger remove-field-btn">
                 <iconify-icon icon="solar:trash-bin-minimalistic-outline"></iconify-icon>
@@ -156,8 +201,7 @@
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Elevator Identification No</label>
-                    <input type="text" name="elevators[__INDEX__][identification_no]" class="form-control"
-                        placeholder="Ex: LP-A-01" required>
+                    <input type="text" name="elevators[__INDEX__][identification_no]" class="form-control" placeholder="Ex: LP-A-01" required>
                 </div>
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Unit Type</label>
@@ -180,30 +224,25 @@
             <div class="row">
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Speed</label>
-                    <input type="text" name="elevators[__INDEX__][speed]" class="form-control"
-                        placeholder="Ex: 1.5 m/s">
+                    <input type="text" name="elevators[__INDEX__][speed]" class="form-control" placeholder="Ex: 1.5 m/s">
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Capacity</label>
-                    <input type="text" name="elevators[__INDEX__][capacity]" class="form-control"
-                        placeholder="Ex: 1000kg / 13 persons">
+                    <input type="text" name="elevators[__INDEX__][capacity]" class="form-control" placeholder="Ex: 1000kg / 13 persons">
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Brand</label>
-                    <input type="text" name="elevators[__INDEX__][brand]" class="form-control"
-                        placeholder="Ex: KONE">
+                    <input type="text" name="elevators[__INDEX__][brand]" class="form-control" placeholder="Ex: KONE">
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Model</label>
-                    <input type="text" name="elevators[__INDEX__][model]" class="form-control"
-                        placeholder="Ex: MonoSpace 500">
+                    <input type="text" name="elevators[__INDEX__][model]" class="form-control" placeholder="Ex: MonoSpace 500">
                 </div>
             </div>
 
             <div class="unit-custom-fields"></div>
             <button type="button" class="btn btn-sm btn-outline-primary add-unit-field-btn">
-                <iconify-icon icon="solar:add-circle-outline" style="margin-right:4px;"></iconify-icon> Add Extra Field
-                for This Unit
+                <iconify-icon icon="solar:add-circle-outline" style="margin-right:4px;"></iconify-icon> Add Extra Field for This Unit
             </button>
         </div>
     </template>
@@ -228,10 +267,8 @@
             container.appendChild(row);
         }
 
-        // Contract-level custom fields
         document.getElementById('addContractFieldBtn').addEventListener('click', function() {
-            addCustomFieldRow(document.getElementById('contractCustomFields'), 'custom_field_labels[]',
-                'custom_field_values[]');
+            addCustomFieldRow(document.getElementById('contractCustomFields'), 'custom_field_labels[]', 'custom_field_values[]');
         });
 
         // ===== Elevator units (dynamic count + per-unit custom fields) =====
@@ -268,8 +305,7 @@
 
                 block.querySelector('.add-unit-field-btn').addEventListener('click', function() {
                     const unitFieldsContainer = block.querySelector('.unit-custom-fields');
-                    addCustomFieldRow(unitFieldsContainer, `elevators[${i}][custom_field_labels][]`,
-                        `elevators[${i}][custom_field_values][]`);
+                    addCustomFieldRow(unitFieldsContainer, `elevators[${i}][custom_field_labels][]`, `elevators[${i}][custom_field_values][]`);
                 });
 
                 container.appendChild(block);
@@ -283,6 +319,96 @@
 
         renderElevatorUnits(1);
 
+        // ===== Route → Engineer auto-display =====
+        const routeSelect = document.getElementById('route_id');
+        const engineerSelect = document.getElementById('assigned_engineer_id');
+        const routeEngineerDisplay = document.getElementById('routeEngineerDisplay');
+        const routeEngineerName = document.getElementById('routeEngineerName');
+        const noRouteEngineerText = document.getElementById('noRouteEngineerText');
+
+        function updateEngineerFromRoute() {
+            const selectedOption = routeSelect.options[routeSelect.selectedIndex];
+            const engineerName = selectedOption?.dataset?.engineer || '';
+
+            routeEngineerDisplay.style.display = 'none';
+            noRouteEngineerText.style.display = 'none';
+
+            if (routeSelect.value === '') {
+                return;
+            }
+
+            if (engineerName) {
+                routeEngineerName.textContent = engineerName;
+                routeEngineerDisplay.style.display = 'block';
+
+                for (const opt of engineerSelect.options) {
+                    if (opt.text === engineerName) {
+                        engineerSelect.value = opt.value;
+                        break;
+                    }
+                }
+            } else {
+                noRouteEngineerText.style.display = 'block';
+            }
+        }
+
+        routeSelect.addEventListener('change', updateEngineerFromRoute);
+
+        // ===== New Route modal =====
+        document.getElementById('saveNewRouteBtn').addEventListener('click', function() {
+            const routeNo = document.getElementById('modal_route_no').value.trim();
+            const description = document.getElementById('modal_route_description').value.trim();
+            const engineerId = document.getElementById('modal_route_engineer').value;
+            const msgBox = document.getElementById('newRouteMessage');
+
+            if (! routeNo) {
+                msgBox.innerHTML = '<div class="alert alert-danger">Route number is required.</div>';
+                return;
+            }
+
+            const btn = this;
+            btn.disabled = true;
+            btn.innerText = 'Creating...';
+
+            fetch("{{ route('admin.routes.quick-store') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                    },
+                    body: JSON.stringify({ route_no: routeNo, description: description, engineer_id: engineerId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerText = 'Create Route';
+
+                    if (data.success) {
+                        const option = document.createElement('option');
+                        option.value = data.route.id;
+                        option.text = data.route.route_no + (data.route.description ? ' — ' + data.route.description : '');
+                        option.dataset.engineer = data.route.engineer_name || '';
+                        routeSelect.appendChild(option);
+                        routeSelect.value = data.route.id;
+                        updateEngineerFromRoute();
+
+                        document.getElementById('modal_route_no').value = '';
+                        document.getElementById('modal_route_description').value = '';
+                        document.getElementById('modal_route_engineer').value = '';
+                        msgBox.innerHTML = '';
+                        bootstrap.Modal.getInstance(document.getElementById('newRouteModal')).hide();
+                    } else {
+                        msgBox.innerHTML = `<div class="alert alert-danger">${Object.values(data.errors).flat().join('<br>')}</div>`;
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btn.innerText = 'Create Route';
+                    msgBox.innerHTML = '<div class="alert alert-danger">Something went wrong. Please try again.</div>';
+                });
+        });
+
+        // ===== Form submit =====
         document.getElementById('createContractForm').addEventListener('submit', function(e) {
             e.preventDefault();
             let form = this;
@@ -306,15 +432,11 @@
                     } else {
                         let errors = Object.values(data.errors).flat().join('<br>');
                         messageBox.innerHTML = `<div class="alert alert-danger">${errors}</div>`;
-                        window.scrollTo({
-                            top: 0,
-                            behavior: 'smooth'
-                        });
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
                     }
                 })
                 .catch(error => {
-                    document.getElementById('message').innerHTML =
-                        `<div class="alert alert-danger">Error: ${error}</div>`;
+                    document.getElementById('message').innerHTML = `<div class="alert alert-danger">Error: ${error}</div>`;
                 });
         });
     </script>

@@ -65,7 +65,7 @@
                     <span class="nav-icon">
                         <iconify-icon icon="solar:file-text-outline"></iconify-icon>
                     </span>
-                    <span class="nav-text"> Contracts</span>
+                    <span class="nav-text">Master list</span>
                 </a>
             </li>
 
@@ -84,18 +84,39 @@
                     <span class="nav-icon">
                         <iconify-icon icon="solar:map-point-outline"></iconify-icon>
                     </span>
-                    <span class="nav-text"> Job Tracking</span>
+                    <span class="nav-text"> Time sheets </span>
                 </a>
             </li>
 
             <li class="nav-item">
+                <a class="nav-link" href="{{ route('admin.timesheet-approval.index') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:clipboard-check-outline"></iconify-icon>
+                    </span>
+                    <span class="nav-text"> Timesheet Approval</span>
+                </a>
+            </li>
+
+
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('admin.monthly-maintenance.index') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:calendar-mark-outline"></iconify-icon>
+                    </span>
+                    <span class="nav-text"> Monthly Maintenance</span>
+                </a>
+            </li>
+
+
+         
+            {{-- <li class="nav-item">
                 <a class="nav-link" href="{{ route('admin.attendance.index') }}">
                     <span class="nav-icon">
                         <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
                     </span>
                     <span class="nav-text"> Attendance</span>
                 </a>
-            </li>
+            </li> --}}
 
             {{-- <li class="nav-item">
                 <a class="nav-link menu-arrow" href="#sidebarSites" data-bs-toggle="collapse" role="button"

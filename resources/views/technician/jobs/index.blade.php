@@ -4,17 +4,18 @@
     @include('layouts.partials.page-title', ['title' => 'Dashboard', 'subtitle' => 'My Jobs'])
 
     <style>
-        .tech-tab-nav { display: flex; gap: 6px; background: #F5F7FA; border-radius: 10px; padding: 4px; margin-bottom: 14px; }
-        .tech-tab-nav button { flex: 1; text-align: center; padding: 8px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: #6b7280; background: none; border: none; }
-        .tech-tab-nav button.active { background: #fff; color: #2E5AAC; box-shadow: 0 1px 3px rgba(15,42,67,0.08); }
         .unit-search-box { position: relative; margin-bottom: 14px; }
         .unit-search-box iconify-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #8792a2; font-size: 18px; }
         .unit-search-box input { padding-left: 38px; }
         #jobListContainer { min-height: 200px; position: relative; }
         #jobListContainer.loading { opacity: 0.5; pointer-events: none; transition: opacity .15s ease; }
+        .find-unit-banner {
+            background: linear-gradient(135deg, #2E5AAC, #17A2B8); border-radius: 12px; padding: 16px;
+            color: #fff; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        }
     </style>
 
-    {{-- Quick stats (loaded once, stays static) --}}
+    {{-- Quick stats --}}
     <div class="row g-2 mb-3">
         <div class="col-4">
             <div class="card text-center mb-0">
@@ -42,7 +43,7 @@
         </div>
     </div>
 
-    {{-- Today's attendance (loaded once, stays static) --}}
+    {{-- Today's attendance --}}
     <div class="card">
         <div class="card-body">
             <p class="text-muted small mb-2 fw-semibold">Today's Attendance</p>
@@ -66,20 +67,26 @@
         </div>
     </div>
 
-    {{-- Search by unit ID --}}
+    {{-- Quick access to Find Unit --}}
+    <a href="{{ route('technician.jobs.find-unit') }}" class="text-decoration-none">
+        <div class="find-unit-banner">
+            <div>
+                <div class="fw-bold">Know the unit ID?</div>
+                <div class="small" style="opacity:0.9;">Search and jump straight to that job</div>
+            </div>
+            <iconify-icon icon="solar:qr-code-outline" style="font-size:28px;"></iconify-icon>
+        </div>
+    </a>
+
+    <p class="fw-semibold mb-2">This Month's Jobs</p>
+
+    {{-- Search by unit ID (within this month's list) --}}
     <div class="unit-search-box">
         <iconify-icon icon="solar:magnifer-outline"></iconify-icon>
         <input type="text" id="unitSearchInput" class="form-control" placeholder="Search by unit ID (e.g. LP-A-01)">
     </div>
 
-    {{-- Previous / Current / Upcoming tabs --}}
-    <div class="tech-tab-nav">
-        <button type="button" class="period-tab active" data-period="previous">Previous Month</button>
-        <button type="button" class="period-tab" data-period="current">This Month</button>
-        <button type="button" class="period-tab" data-period="upcoming">Upcoming</button>
-    </div>
-
-    {{-- Job list — swapped via AJAX, rest of the page stays put --}}
+    {{-- Job list — current month only, swapped via AJAX --}}
     <div id="jobListContainer">
         {{-- Initial load happens via JS on page ready --}}
     </div>
@@ -88,15 +95,12 @@
     <script>
         const container = document.getElementById('jobListContainer');
         const searchInput = document.getElementById('unitSearchInput');
-        const tabs = document.querySelectorAll('.period-tab');
-        let currentPeriod = 'current';
         let searchTimeout;
 
         function loadJobs(page = 1) {
             container.classList.add('loading');
 
             const params = new URLSearchParams({
-                period: currentPeriod,
                 unit_search: searchInput.value,
                 page: page,
             });
@@ -115,7 +119,6 @@
                 });
         }
 
-        // Intercept pagination link clicks so they also load via AJAX, not full page reload
         function attachPaginationHandlers() {
             container.querySelectorAll('.pagination a').forEach(link => {
                 link.addEventListener('click', function(e) {
@@ -128,22 +131,12 @@
             });
         }
 
-        tabs.forEach(tab => {
-            tab.addEventListener('click', function() {
-                tabs.forEach(t => t.classList.remove('active'));
-                this.classList.add('active');
-                currentPeriod = this.dataset.period;
-                loadJobs(1);
-            });
-        });
-
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => loadJobs(1), 500);
         });
 
-        // Set "This Month" as the visually active tab and load it first
-        document.querySelector('.period-tab[data-period="current"]').click();
+        loadJobs(1);
     </script>
     @endpush
 @endsection

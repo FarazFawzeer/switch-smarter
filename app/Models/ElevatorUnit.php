@@ -31,4 +31,6 @@ class ElevatorUnit extends Model
     {
         return $this->hasMany(JobRecord::class, 'elevator_unit_id')->where('job_type', 'ppm');
     }
+
+    
 }
