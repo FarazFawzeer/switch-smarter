@@ -153,6 +153,7 @@
             <table class="ap-table">
                 <thead>
                     <tr>
+<th>No</th>
                         <th>Employee</th>
                         <th>Shift</th>
                         <th>Date</th>
@@ -184,6 +185,7 @@
                             $canAct = $record->approval_status === $expectedStatus;
                         @endphp
                         <tr>
+                            <td>{{ $loop->iteration }}</td>
                             <td>
                                 <div class="ap-employee-cell">
                                     <img src="{{ storage_asset(optional($record->technician)->image_path) ?? asset('/images/users/avatar-6.jpg') }}"

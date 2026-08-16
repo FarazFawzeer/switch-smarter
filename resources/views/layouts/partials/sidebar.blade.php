@@ -31,24 +31,12 @@
                </li> --}}
 
             <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarAdmin" data-bs-toggle="collapse" role="button"
-                    aria-expanded="false" aria-controls="sidebarAdmin">
+                <a class="nav-link" href="{{ route('admin.users.index') }}">
                     <span class="nav-icon">
                         <iconify-icon icon="solar:user-circle-outline"></iconify-icon>
                     </span>
-                    <span class="nav-text"> Admin</span>
+                    <span class="nav-text">Admin</span>
                 </a>
-                <div class="collapse" id="sidebarAdmin">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('admin.users.create') }}">Create</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('admin.users.index') }}">View</a>
-                        </li>
-
-                    </ul>
-                </div>
             </li>
 
             <li class="nav-item">
@@ -79,23 +67,6 @@
                 </a>
             </li>
 
-            <li class="nav-item">
-                <a class="nav-link" href="{{ route('admin.tracking.index') }}">
-                    <span class="nav-icon">
-                        <iconify-icon icon="solar:map-point-outline"></iconify-icon>
-                    </span>
-                    <span class="nav-text"> Time sheets </span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link" href="{{ route('admin.timesheet-approval.index') }}">
-                    <span class="nav-icon">
-                        <iconify-icon icon="solar:clipboard-check-outline"></iconify-icon>
-                    </span>
-                    <span class="nav-text"> Timesheet Approval</span>
-                </a>
-            </li>
 
 
             <li class="nav-item">
@@ -103,60 +74,59 @@
                     <span class="nav-icon">
                         <iconify-icon icon="solar:calendar-mark-outline"></iconify-icon>
                     </span>
-                    <span class="nav-text"> Monthly Maintenance</span>
+                    <span class="nav-text"> Preventive Maintenance</span>
                 </a>
             </li>
 
 
-         
-            {{-- <li class="nav-item">
-                <a class="nav-link" href="{{ route('admin.attendance.index') }}">
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('admin.job-types.breakdown') }}">
                     <span class="nav-icon">
-                        <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
+                        <iconify-icon icon="solar:danger-triangle-outline"></iconify-icon>
                     </span>
-                    <span class="nav-text"> Attendance</span>
+                    <span class="nav-text"> Breakdown</span>
                 </a>
-            </li> --}}
-
-            {{-- <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarSites" data-bs-toggle="collapse" role="button"
-                    aria-expanded="false" aria-controls="sidebarSites">
-                    <span class="nav-icon">
-                        <iconify-icon icon="solar:map-point-outline"></iconify-icon>
-                    </span>
-                    <span class="nav-text"> Sites</span>
-                </a>
-                <div class="collapse" id="sidebarSites">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('admin.sites.create') }}">Create</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('admin.sites.index') }}">View</a>
-                        </li>
-                    </ul>
-                </div>
             </li>
 
             <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarJobs" data-bs-toggle="collapse" role="button"
-                    aria-expanded="false" aria-controls="sidebarJobs">
+                <a class="nav-link" href="{{ route('admin.job-types.repair') }}">
                     <span class="nav-icon">
-                        <iconify-icon icon="solar:clipboard-list-outline"></iconify-icon>
+                        <iconify-icon icon="solar:settings-outline"></iconify-icon>
                     </span>
-                    <span class="nav-text"> Jobs</span>
+                    <span class="nav-text"> Repair</span>
                 </a>
-                <div class="collapse" id="sidebarJobs">
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('admin.job-types.casual-job') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:wallet-outline"></iconify-icon>
+                    </span>
+                    <span class="nav-text"> Casual Job</span>
+                </a>
+            </li>
+
+
+
+            <li class="nav-item">
+                <a class="nav-link menu-arrow" href="#sidebarTimesheets" data-bs-toggle="collapse" role="button"
+                    aria-expanded="false" aria-controls="sidebarTimesheets">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
+                    </span>
+                    <span class="nav-text"> Times & Approval</span>
+                </a>
+                <div class="collapse" id="sidebarTimesheets">
                     <ul class="nav sub-navbar-nav">
                         <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('admin.jobs.create') }}">Create</a>
+                            <a class="sub-nav-link" href="{{ route('admin.tracking.index') }}">Sheets</a>
                         </li>
                         <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('admin.jobs.index') }}">View</a>
+                            <a class="sub-nav-link" href="{{ route('admin.timesheet-approval.index') }}">Approval</a>
                         </li>
                     </ul>
                 </div>
-            </li> --}}
+            </li>
 
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('admin.profile.edit') }}">

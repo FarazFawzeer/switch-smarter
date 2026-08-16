@@ -17,6 +17,16 @@ class ContractSchedulingController extends Controller
 {
     public function index(Request $request)
     {
+        $view = $request->get('view', 'list'); // 'list' or 'calendar'
+
+        $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
+        $routes = \App\Models\Route::orderBy('route_no')->get();
+        $technicians = User::where('type', 'Technician')->select('id', 'name')->get();
+
+        if ($view === 'calendar') {
+            return $this->calendarView($request, $engineers, $routes, $technicians);
+        }
+
         $query = Contract::with([
             'engineer:id,name',
             'route:id,route_no',
@@ -44,12 +54,6 @@ class ContractSchedulingController extends Controller
             $query->where('assigned_engineer_id', $request->input('engineer_id'));
         }
 
-        if ($request->filled('scheduled')) {
-            // 'yes' = fully scheduled, 'partial' = some units left, 'no' = nothing scheduled yet
-            $status = $request->input('scheduled');
-            $query->get(); // handled after fetch below since it needs per-unit computation
-        }
-
         $sortable = ['project_name', 'location'];
         $sort = $request->get('sort', 'project_name');
         $dir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
@@ -57,7 +61,6 @@ class ContractSchedulingController extends Controller
 
         $contracts = $query->paginate(20)->withQueryString();
 
-        // Attach a computed scheduling status to each contract for the view
         $contracts->getCollection()->transform(function ($contract) {
             $total = $contract->elevatorUnits->count();
             $scheduled = $contract->scheduledUnitsCount();
@@ -73,7 +76,6 @@ class ContractSchedulingController extends Controller
             return $contract;
         });
 
-        // Apply the "scheduled" filter now that status is computed (small in-memory filter on the current page)
         if ($request->filled('scheduled')) {
             $status = $request->input('scheduled');
             $map = ['yes' => 'complete', 'partial' => 'partial', 'no' => 'not_scheduled'];
@@ -84,9 +86,69 @@ class ContractSchedulingController extends Controller
             }
         }
 
-        $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
+        return view('admin.scheduling.index', compact('contracts', 'engineers', 'sort', 'dir', 'view'));
+    }
 
-        return view('admin.scheduling.index', compact('contracts', 'engineers', 'sort', 'dir'));
+    /**
+     * Company-wide calendar: every PPM visit across all contracts/units for the selected month.
+     */
+    private function calendarView(Request $request, $engineers, $routes, $technicians)
+    {
+        $month = (int) $request->get('month', now()->month);
+        $year = (int) $request->get('year', now()->year);
+
+        $monthStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $monthEnd = $monthStart->copy()->endOfMonth();
+
+        $query = JobRecord::where('job_type', 'ppm')
+            ->whereBetween('scheduled_date', [$monthStart, $monthEnd])
+            ->with(['unit:id,identification_no', 'contract:id,project_name,route_id', 'contract.route:id,route_no', 'technician:id,name']);
+
+        if ($request->filled('route_id')) {
+            $query->whereHas('contract', fn($q) => $q->where('route_id', $request->input('route_id')));
+        }
+
+        if ($request->filled('technician_id')) {
+            $query->where('assigned_technician_id', $request->input('technician_id'));
+        }
+
+        $jobs = $query->get()->groupBy(fn($job) => $job->scheduled_date->day);
+
+        // Build the full 6-row calendar grid, including faded leading/trailing days from adjacent months
+        $calendarWeeks = [];
+        $gridStart = $monthStart->copy()->startOfWeek(Carbon::SUNDAY);
+        $cursor = $gridStart->copy();
+
+        for ($week = 0; $week < 6; $week++) {
+            $days = [];
+            for ($d = 0; $d < 7; $d++) {
+                $days[] = [
+                    'date'         => $cursor->copy(),
+                    'inMonth'      => $cursor->month === $month,
+                    'isToday'      => $cursor->isToday(),
+                    'jobs'         => $cursor->month === $month ? ($jobs->get($cursor->day) ?? collect()) : collect(),
+                ];
+                $cursor->addDay();
+            }
+            $calendarWeeks[] = $days;
+            if ($cursor->month !== $month && $week >= 4) {
+                break; // stop once we've fully wrapped past the target month
+            }
+        }
+
+        $monthOptions = collect(range(1, 12))->mapWithKeys(fn($m) => [$m => Carbon::create()->month($m)->format('F')]);
+        $yearOptions = range(now()->year - 2, now()->year + 2);
+
+        return view('admin.scheduling.index', compact(
+            'calendarWeeks',
+            'month',
+            'year',
+            'monthOptions',
+            'yearOptions',
+            'engineers',
+            'routes',
+            'technicians'
+        ))->with('view', 'calendar');
     }
 
     public function create(Contract $contract)
@@ -201,30 +263,30 @@ class ContractSchedulingController extends Controller
         $totalJobsCount = $contract->ppmJobs()->count();
 
         $isFiltering = $request->filled('from') || $request->filled('to') || $request->filled('unit_id');
-$query = $contract->ppmJobs()->with(['technician', 'unit'])->orderBy('scheduled_date')->orderBy('elevator_unit_id');
+        $query = $contract->ppmJobs()->with(['technician', 'unit'])->orderBy('scheduled_date')->orderBy('elevator_unit_id');
 
-if ($request->filled('unit_id')) {
-    $query->where('elevator_unit_id', $request->input('unit_id'));
-}
+        if ($request->filled('unit_id')) {
+            $query->where('elevator_unit_id', $request->input('unit_id'));
+        }
 
-if ($request->filled('from') || $request->filled('to')) {
-    // Explicit date range always takes priority, whether or not a unit is selected
-    if ($request->filled('from')) {
-        $query->where('scheduled_date', '>=', $request->input('from'));
-    }
-    if ($request->filled('to')) {
-        $query->where('scheduled_date', '<=', $request->input('to'));
-    }
-} elseif ($request->filled('unit_id')) {
-    // A specific unit was selected with no date range — show only its current month's visit
-    $query->whereYear('scheduled_date', now()->year)
-          ->whereMonth('scheduled_date', now()->month);
-} else {
-    // Default view (no unit, no dates): current month and everything before it
-    $query->where('scheduled_date', '<=', now()->endOfMonth());
-}
+        if ($request->filled('from') || $request->filled('to')) {
+            // Explicit date range always takes priority, whether or not a unit is selected
+            if ($request->filled('from')) {
+                $query->where('scheduled_date', '>=', $request->input('from'));
+            }
+            if ($request->filled('to')) {
+                $query->where('scheduled_date', '<=', $request->input('to'));
+            }
+        } elseif ($request->filled('unit_id')) {
+            // A specific unit was selected with no date range — show only its current month's visit
+            $query->whereYear('scheduled_date', now()->year)
+                ->whereMonth('scheduled_date', now()->month);
+        } else {
+            // Default view (no unit, no dates): current month and everything before it
+            $query->where('scheduled_date', '<=', now()->endOfMonth());
+        }
 
-$visibleJobs = $query->get();
+        $visibleJobs = $query->get();
         // ===== Unit overview: aggregate counts via SQL, no per-unit loop =====
         $totalUnits = $contract->elevatorUnits()->count();
 

@@ -14,6 +14,7 @@ class JobRecord extends Model
         'contract_id',
         'elevator_unit_id',
         'job_type',
+        'job_code',
         'scheduled_date',
         'assigned_technician_id',
         'assigned_by',
@@ -21,6 +22,10 @@ class JobRecord extends Model
         'status',
         'priority',
         'description',
+        'breakdown_cause',
+        'immediate_action_taken',
+        'warranty_contract',
+        'customer_name',
         'completed_at',
         'check_in_time',
         'check_in_lat',
@@ -29,15 +34,34 @@ class JobRecord extends Model
         'check_out_lat',
         'check_out_lng',
         'completion_photo',
+        'signature_path',
         'work_notes',
+        'parts_used',
+        'cost',
+        'repair_job_no',
+        'quotation_date',
+        'po_status',
+        'po_received_date',
+        'po_number',
+        'quotation_value',
+        'scope_of_work',
+        'quotation_attachment',
+        'material_status',
+        'site_status',
+        'start_photo',
+        
     ];
 
     protected $casts = [
-        'scheduled_date'  => 'date',
-        'completed_at'    => 'datetime',
-        'check_in_time'   => 'datetime',
-        'check_out_time'  => 'datetime',
+        'scheduled_date' => 'date',
+        'completed_at'   => 'datetime',
+        'check_in_time'  => 'datetime',
+        'check_out_time' => 'datetime',
+        'parts_used'     => 'array',
+        'quotation_date'   => 'date',
+        'po_received_date' => 'date',
     ];
+
     public function site(): BelongsTo
     {
         return $this->belongsTo(Site::class);
@@ -68,10 +92,14 @@ class JobRecord extends Model
         return $this->belongsTo(User::class, 'reported_by');
     }
 
-    public function isOverdue(): bool
+    public static function generateJobCode(string $type): string
     {
-        return $this->status === 'pending'
-            && $this->scheduled_date
-            && $this->scheduled_date->isPast();
+        $prefixMap = ['ppm' => 'PPM', 'repair' => 'RP', 'breakdown' => 'BD', 'casual_job' => 'CJ'];
+        $prefix = $prefixMap[$type] ?? 'JB';
+        $year = now()->year;
+
+        $countThisYear = static::where('job_type', $type)->whereYear('created_at', $year)->count() + 1;
+
+        return sprintf('%s-%d-%05d', $prefix, $year, $countThisYear);
     }
 }

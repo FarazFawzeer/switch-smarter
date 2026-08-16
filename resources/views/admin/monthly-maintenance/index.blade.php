@@ -244,6 +244,7 @@
             <table class="mm-table">
                 <thead>
                     <tr>
+                        <th>No</th>
                         <th>Project</th>
                         <th>Unit</th>
                         <th>Route</th>
@@ -269,6 +270,7 @@
                                 : $statusMap[$job->status] ?? [ucfirst($job->status), '#8792a2'];
                         @endphp
                         <tr>
+                            <td>{{ $jobs->firstItem() + $loop->index }}</td>
                             <td>
                                 <a href="{{ route('admin.contracts.show', $job->contract_id) }}"
                                     class="fw-semibold text-dark text-decoration-none">

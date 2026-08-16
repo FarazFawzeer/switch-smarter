@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\RouteController;
 use App\Http\Controllers\Admin\TimesheetApprovalController;
 use App\Http\Controllers\Admin\MonthlyMaintenanceController;
+use App\Http\Controllers\Admin\AdminJobTypeController;
 
 require __DIR__ . '/auth.php';
 
@@ -72,8 +73,14 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
 
     Route::prefix('tracking')->name('tracking.')->group(function () {
         Route::get('/', [JobTrackingController::class, 'index'])->name('index');
+        Route::get('/export', [JobTrackingController::class, 'export'])->name('export');
         Route::get('/{job}', [JobTrackingController::class, 'show'])->name('show');
     });
+
+    Route::get('casual-job/create', [AdminJobTypeController::class, 'casualJobCreate'])->name('job-types.casual-job.create');
+    Route::post('casual-job', [AdminJobTypeController::class, 'casualJobStore'])->name('job-types.casual-job.store');
+    Route::get('casual-job/{contract}/units', [AdminJobTypeController::class, 'unitsForContract'])->name('job-types.casual-job.units');
+    Route::get('casual-job/{contract}/technicians', [AdminJobTypeController::class, 'techniciansForContract'])->name('job-types.casual-job.technicians');
 
     Route::prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/', [AttendanceController::class, 'index'])->name('index');
@@ -84,6 +91,11 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
         Route::post('/{attendance}/approve', [TimesheetApprovalController::class, 'approve'])->name('approve');
         Route::post('/{attendance}/reject', [TimesheetApprovalController::class, 'reject'])->name('reject');
     });
+
+    Route::get('breakdown', [AdminJobTypeController::class, 'breakdown'])->name('job-types.breakdown');
+    Route::get('repair', [AdminJobTypeController::class, 'repair'])->name('job-types.repair');
+    Route::get('casual-job', [AdminJobTypeController::class, 'casualJob'])->name('job-types.casual-job');
+    Route::get('job-types/{job}', [AdminJobTypeController::class, 'show'])->name('job-types.show');
 });
 
 Route::prefix('technician')->name('technician.')->middleware(['auth', 'only.technician', 'no.cache'])->group(function () {
@@ -95,6 +107,18 @@ Route::prefix('technician')->name('technician.')->middleware(['auth', 'only.tech
     Route::get('/jobs-list', [TechnicianJobController::class, 'list'])->name('jobs.list');
     Route::get('/find-unit', [TechnicianJobController::class, 'findUnit'])->name('jobs.find-unit');
     Route::get('/search-unit', [TechnicianJobController::class, 'searchUnit'])->name('jobs.search-unit');
+
+    Route::get('/activities/new', [TechnicianJobController::class, 'selectActivity'])->name('activities.select');
+    Route::get('/activities/new/{type}', [TechnicianJobController::class, 'activitySearchForm'])->name('activities.search-form');
+    Route::get('/activities/new/{type}/search-unit', [TechnicianJobController::class, 'activitySearchUnit'])->name('activities.search-unit');
+    Route::post('/activities/new/{type}', [TechnicianJobController::class, 'activityCreate'])->name('activities.create');
+    Route::get('/activities/{job}', [TechnicianJobController::class, 'activityShow'])->name('activities.show');
+    Route::post('/activities/{job}/start', [TechnicianJobController::class, 'activityStart'])->name('activities.start');
+    Route::post('/activities/{job}/save-draft', [TechnicianJobController::class, 'activitySaveDraft'])->name('activities.save-draft');
+    Route::post('/activities/{job}/complete', [TechnicianJobController::class, 'activityComplete'])->name('activities.complete');
+    Route::get('/jobs-browse', [TechnicianJobController::class, 'jobsPage'])->name('jobs.browse');
+    Route::get('/schedule', [TechnicianJobController::class, 'schedulePage'])->name('schedule');
+    Route::get('/profile', [TechnicianJobController::class, 'profilePage'])->name('profile');
 });
 
 Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {

@@ -26,36 +26,191 @@
     @endphp
 
     <style>
-        .ct-stat-card { border: none; border-radius: 12px; box-shadow: 0 1px 3px rgba(15,42,67,0.06); }
-        .ct-stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
-        .ct-project-card { border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(15,42,67,0.06); transition: box-shadow .15s ease, transform .15s ease; }
-        .ct-project-card:hover { box-shadow: 0 6px 16px rgba(15,42,67,0.10); transform: translateY(-2px); }
-        .ct-project-title { font-size: 16px; font-weight: 600; color: #16233b; margin: 0; }
-        .ct-meta-row { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; }
-        .ct-progress-track { height: 5px; border-radius: 4px; background: #eef0f4; overflow: hidden; }
-        .ct-progress-fill { height: 100%; border-radius: 4px; }
-        .ct-info-pill { background: #F5F7FA; border-radius: 8px; padding: 6px 10px; text-align: center; flex: 1; }
-        .ct-info-pill .val { font-size: 15px; font-weight: 600; color: #16233b; line-height: 1.2; }
-        .ct-info-pill .lbl { font-size: 11px; color: #8792a2; text-transform: uppercase; letter-spacing: 0.03em; }
-        .ct-icon-btn { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px solid #e7e9ee; color: #6b7280; transition: all .15s ease; }
-        .ct-icon-btn:hover { background: #F5F7FA; }
-        .ct-icon-btn.danger:hover { background: #fdeeee; color: #d64545; border-color: #f6d7d7; }
-        .ct-icon-btn.primary:hover { background: #eaf0fb; color: #2E5AAC; border-color: #cfe0f6; }
-        .ct-view-toggle { border: 1px solid #e7e9ee; border-radius: 8px; overflow: hidden; }
-        .ct-view-toggle a { padding: 6px 14px; font-size: 13px; color: #6b7280; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
-        .ct-view-toggle a.active { background: #2E5AAC; color: #fff; }
-        .ct-list-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
-        .ct-list-table thead th { background: #F5F7FA; color: #56606f; font-weight: 600; padding: 10px 12px; border-bottom: 1px solid #e7e9ee; white-space: nowrap; }
-        .ct-list-table thead th a { color: inherit; text-decoration: none; }
-        .ct-list-table thead th a:hover { color: #2E5AAC; }
-        .ct-list-table tbody td { padding: 10px 12px; border-bottom: 1px solid #f0f1f4; vertical-align: middle; }
-        .ct-list-table tbody tr:hover { background: #FAFBFD; }
-        .ct-status-pill { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; color: #fff; min-width: 90px; text-align: center; }
-        .ct-filter-select { font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid #e7e9ee; background: #fff; max-width: 140px; }
+        .ct-stat-card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(15, 42, 67, 0.06);
+        }
+
+        .ct-stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .ct-project-card {
+            border: none;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(15, 42, 67, 0.06);
+            transition: box-shadow .15s ease, transform .15s ease;
+        }
+
+        .ct-project-card:hover {
+            box-shadow: 0 6px 16px rgba(15, 42, 67, 0.10);
+            transform: translateY(-2px);
+        }
+
+        .ct-project-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #16233b;
+            margin: 0;
+        }
+
+        .ct-meta-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .ct-progress-track {
+            height: 5px;
+            border-radius: 4px;
+            background: #eef0f4;
+            overflow: hidden;
+        }
+
+        .ct-progress-fill {
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .ct-info-pill {
+            background: #F5F7FA;
+            border-radius: 8px;
+            padding: 6px 10px;
+            text-align: center;
+            flex: 1;
+        }
+
+        .ct-info-pill .val {
+            font-size: 15px;
+            font-weight: 600;
+            color: #16233b;
+            line-height: 1.2;
+        }
+
+        .ct-info-pill .lbl {
+            font-size: 11px;
+            color: #8792a2;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .ct-icon-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e7e9ee;
+            color: #6b7280;
+            transition: all .15s ease;
+        }
+
+        .ct-icon-btn:hover {
+            background: #F5F7FA;
+        }
+
+        .ct-icon-btn.danger:hover {
+            background: #fdeeee;
+            color: #d64545;
+            border-color: #f6d7d7;
+        }
+
+        .ct-icon-btn.primary:hover {
+            background: #eaf0fb;
+            color: #2E5AAC;
+            border-color: #cfe0f6;
+        }
+
+        .ct-view-toggle {
+            border: 1px solid #e7e9ee;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .ct-view-toggle a {
+            padding: 6px 14px;
+            font-size: 13px;
+            color: #6b7280;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .ct-view-toggle a.active {
+            background: #2E5AAC;
+            color: #fff;
+        }
+
+        .ct-list-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            font-size: 13px;
+        }
+
+        .ct-list-table thead th {
+            background: #F5F7FA;
+            color: #56606f;
+            font-weight: 600;
+            padding: 10px 12px;
+            border-bottom: 1px solid #e7e9ee;
+            white-space: nowrap;
+        }
+
+        .ct-list-table thead th a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .ct-list-table thead th a:hover {
+            color: #2E5AAC;
+        }
+
+        .ct-list-table tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f1f4;
+            vertical-align: middle;
+        }
+
+        .ct-list-table tbody tr:hover {
+            background: #FAFBFD;
+        }
+
+        .ct-status-pill {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            min-width: 90px;
+            text-align: center;
+        }
+
+        .ct-filter-select {
+            font-size: 12px;
+            padding: 3px 6px;
+            border-radius: 6px;
+            border: 1px solid #e7e9ee;
+            background: #fff;
+            max-width: 140px;
+        }
     </style>
 
     {{-- Quick status strip (Grid view only) --}}
-    @if($view === 'grid')
+    @if ($view === 'grid')
         <div class="row g-3 mb-3">
             <div class="col-6 col-md-3">
                 <div class="card ct-stat-card">
@@ -166,6 +321,8 @@
                 <table class="ct-list-table">
                     <thead>
                         <tr>
+                            <th>No</th>
+                            <th>Unit ID</th>
                             <th>{!! sortLink('project_name', 'Project', $sort, $dir) !!}</th>
                             <th>
                                 {!! sortLink('project_type', 'Type', $sort, $dir) !!}
@@ -216,7 +373,6 @@
                                             {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
                                     </select></div>
                             </th>
-                            <th>{!! sortLink('identification_no', 'Unit ID', $sort, $dir) !!}</th>
                             <th>
                                 {!! sortLink('unit_type', 'Unit Type', $sort, $dir) !!}
                                 <div><select class="ct-filter-select filter-auto" name="unit_type" form="filterForm">
@@ -257,6 +413,8 @@
                                 };
                             @endphp
                             <tr>
+                                <td>{{ $units->firstItem() + $loop->index }}</td>
+                                <td class="fw-semibold">{{ $unit->identification_no }}</td>
                                 <td>
                                     <a href="{{ route('admin.contracts.show', $unit->contract_id) }}"
                                         class="fw-semibold text-dark">
@@ -281,7 +439,6 @@
                                 <td><span class="ct-status-pill"
                                         style="background:{{ $statusColor }};">{{ ucfirst($unit->contract_status) }}</span>
                                 </td>
-                                <td class="fw-semibold">{{ $unit->identification_no }}</td>
                                 <td>{{ $unit->unit_type }}</td>
                                 <td>{{ $unit->elevator_type ?? '—' }}</td>
                                 <td>{{ $unit->speed ?? '—' }}</td>
@@ -305,7 +462,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="16" class="text-center text-muted py-5">
+                                <td colspan="17" class="text-center text-muted py-5">
                                     <iconify-icon icon="solar:widget-5-outline"
                                         style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                                     <p class="mb-0 mt-2">No units match these filters.</p>

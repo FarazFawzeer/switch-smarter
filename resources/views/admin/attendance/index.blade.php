@@ -100,6 +100,7 @@
             <table class="at-table">
                 <thead>
                     <tr>
+                        <th>No</th>
                         <th>Technician</th>
                         <th>Date</th>
                         <th>Shift</th>
@@ -112,6 +113,7 @@
                 <tbody>
                     @forelse($records as $record)
                         <tr>
+                            <td>{{ $records->firstItem() + $loop->index }}</td>
                             <td>
                                 {{ optional($record->technician)->name ?? '—' }}
                                 @if(optional($record->technician)->employee_id)

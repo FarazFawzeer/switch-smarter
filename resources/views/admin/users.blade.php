@@ -4,9 +4,16 @@
     @include('layouts.partials.page-title', ['title' => 'Admin', 'subtitle' => 'View'])
 
     <div class="card">
-        <div class="card-header">
-            <h5 class="card-title">Admin List</h5>
-            <p class="card-subtitle">All team members in your system with details.</p>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="card-title mb-1">Admin List</h5>
+                <p class="card-subtitle mb-0">All team members in your system with details.</p>
+            </div>
+
+            <a href="{{ route('admin.users.create') }}" class="btn btn-primary">
+                <iconify-icon icon="solar:add-circle-outline" class="me-1"></iconify-icon>
+                Add Admin
+            </a>
         </div>
 
         <div class="card-body">
@@ -27,7 +34,7 @@
                             <tr id="user-{{ $user->id }}">
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-<img src="{{ storage_asset($user->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                        <img src="{{ storage_asset($user->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                             alt="{{ $user->name }}" class="avatar-sm rounded-circle">
                                         <div>
                                             <h6 class="mb-0">{{ $user->name }}</h6>
@@ -37,7 +44,7 @@
                                 <td>{{ $user->email }}</td>
                                 <td>{{ $user->type }}</td>
                                 <td>
-                                    @if($user->type === 'Supervisor')
+                                    @if ($user->type === 'Supervisor')
                                         {{ optional($user->engineer)->name ?? '—' }}
                                     @elseif($user->type === 'Technician')
                                         {{ optional($user->supervisor)->name ?? '—' }}
@@ -97,7 +104,8 @@
                                     document.getElementById('user-' + userId).remove();
                                     Swal.fire('Deleted!', data.message, 'success');
                                 } else {
-                                    Swal.fire('Error!', data.message || 'Something went wrong!', 'error');
+                                    Swal.fire('Error!', data.message || 'Something went wrong!',
+                                        'error');
                                 }
                             })
                             .catch(error => {
