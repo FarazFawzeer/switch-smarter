@@ -207,6 +207,67 @@
             background: #fff;
             max-width: 140px;
         }
+
+        /* =========================
+           TOOLBAR ACTIONS (right side: Bulk Upload + New Project)
+        ========================= */
+        .ct-toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .ct-toolbar-actions .btn {
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 0 16px;
+            border-radius: 8px;
+            font-size: 13.5px;
+            font-weight: 600;
+            white-space: nowrap;
+            line-height: 1;
+        }
+
+        .ct-toolbar-actions .btn iconify-icon {
+            font-size: 16px;
+        }
+
+        .ct-toolbar-actions .btn-outline-primary {
+            border: 1px solid #cfe0f6;
+            color: #2E5AAC;
+            background: #fff;
+        }
+
+        .ct-toolbar-actions .btn-outline-primary:hover {
+            background: #eaf0fb;
+            border-color: #2E5AAC;
+            color: #2E5AAC;
+        }
+
+        .ct-toolbar-actions .btn-primary {
+            background: #2E5AAC;
+            border: 1px solid #2E5AAC;
+        }
+
+        .ct-toolbar-actions .btn-primary:hover {
+            background: #1F4590;
+            border-color: #1F4590;
+        }
+
+        @media (max-width: 767.98px) {
+            .ct-toolbar-actions {
+                width: 100%;
+                justify-content: stretch;
+            }
+
+            .ct-toolbar-actions .btn {
+                flex: 1;
+            }
+        }
     </style>
 
     {{-- Quick status strip (Grid view only) --}}
@@ -270,8 +331,8 @@
         </div>
     @endif
 
-    {{-- Toolbar: view toggle + search + New Project --}}
-    <form method="GET" action="{{ route('admin.contracts.index') }}" id="filterForm" class="row g-2 mb-3 align-items-end">
+    {{-- Toolbar: view toggle + search + filters --}}
+    <form method="GET" action="{{ route('admin.contracts.index') }}" id="filterForm" class="row g-2 mb-2 align-items-end">
         <div class="col-auto">
             <div class="ct-view-toggle d-flex">
                 <a href="{{ request()->fullUrlWithQuery(['view' => 'grid']) }}"
@@ -307,12 +368,20 @@
                 </a>
             </div>
         @endif
-        <div class="col-auto ms-auto">
+    </form>
+
+    {{-- Action buttons: own row, right-aligned, evenly spaced --}}
+    <div class="d-flex justify-content-end mb-3">
+        <div class="ct-toolbar-actions">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
+                data-bs-target="#masterListUploadModal">
+                <iconify-icon icon="solar:upload-outline"></iconify-icon> Bulk Upload
+            </button>
             <a href="{{ route('admin.contracts.create') }}" class="btn btn-primary">
-                <iconify-icon icon="solar:add-circle-outline" style="margin-right:4px;"></iconify-icon> New Project
+                <iconify-icon icon="solar:add-circle-outline"></iconify-icon> New Project
             </a>
         </div>
-    </form>
+    </div>
 
     @if ($view === 'list')
         {{-- ===== LIST VIEW: one row per unit, full contract + unit detail ===== --}}
@@ -584,6 +653,99 @@
             {{ $contracts->links() }}
         </div>
     @endif
+
+    <div class="modal fade" id="masterListUploadModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Bulk Upload — New Projects</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="masterListUploadMessage"></div>
+
+                    <p class="text-muted small">
+                        This adds <strong>new</strong> projects and units only — it will not change any existing project.
+                        Download the template, fill it in (repeat the project columns on every unit row that belongs to the
+                        same project), then upload it below.
+                    </p>
+
+                    <a href="{{ route('admin.contracts.master-list.template') }}"
+                        class="btn btn-sm btn-outline-secondary mb-3">
+                        <iconify-icon icon="solar:download-outline" style="margin-right:4px;"></iconify-icon> Download
+                        Template
+                    </a>
+
+                    <form id="masterListUploadForm" enctype="multipart/form-data">
+                        @csrf
+                        <div class="mb-3">
+                            <label class="form-label">Excel File</label>
+                            <input type="file" name="master_list_file" class="form-control" accept=".xlsx,.xls,.csv"
+                                required>
+                        </div>
+                    </form>
+
+                    <div id="masterListRowErrors" class="small text-danger" style="max-height:180px; overflow-y:auto;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="masterListUploadBtn" class="btn btn-primary">Upload</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('masterListUploadBtn').addEventListener('click', function() {
+            const form = document.getElementById('masterListUploadForm');
+            const formData = new FormData(form);
+            const msgBox = document.getElementById('masterListUploadMessage');
+            const rowErrorsBox = document.getElementById('masterListRowErrors');
+            const btn = this;
+
+            if (!form.querySelector('input[type="file"]').files.length) {
+                msgBox.innerHTML = '<div class="alert alert-danger">Please choose a file.</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = 'Uploading...';
+            msgBox.innerHTML = '';
+            rowErrorsBox.innerHTML = '';
+
+            fetch("{{ route('admin.contracts.master-list.import') }}", {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerText = 'Upload';
+
+                    if (data.success) {
+                        msgBox.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                        if (data.row_errors && data.row_errors.length) {
+                            rowErrorsBox.innerHTML = '<strong>Skipped rows:</strong><br>' + data.row_errors
+                                .join('<br>');
+                        }
+                        setTimeout(() => window.location.reload(), 1200);
+                    } else {
+                        const errors = data.errors?.master_list_file || Object.values(data.errors || {}).flat();
+                        msgBox.innerHTML = `<div class="alert alert-danger">Upload failed.</div>`;
+                        rowErrorsBox.innerHTML = Array.isArray(errors) ? errors.join('<br>') : String(errors);
+                    }
+                })
+                .catch(error => {
+                    btn.disabled = false;
+                    btn.innerText = 'Upload';
+                    msgBox.innerHTML = `<div class="alert alert-danger">Error: ${error}</div>`;
+                });
+        });
+    </script>
 
     <script>
         document.querySelectorAll('.filter-auto').forEach(select => {

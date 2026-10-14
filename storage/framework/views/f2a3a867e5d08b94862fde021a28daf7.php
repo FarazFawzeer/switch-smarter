@@ -11,7 +11,9 @@
 
     <div class="app-wrapper">
 
-        <?php echo $__env->make('layouts.partials/technician-topbar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+        <?php echo $__env->make('layouts.partials/sidebar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+
+        <?php echo $__env->make('layouts.partials/topbar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
         <div class="page-content">
 
@@ -27,9 +29,9 @@
     </div>
 
     <?php echo $__env->make('layouts.partials/vendor-scripts', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
-
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <?php echo $__env->yieldPushContent('scripts'); ?>
 
 </body>
 
-</html><?php /**PATH F:\Personal Projects\Elevator\switch-smarter\resources\views/layouts/technician.blade.php ENDPATH**/ ?>
+</html><?php /**PATH F:\Personal Projects\Elevator\switch-smarter\resources\views/layouts/vertical.blade.php ENDPATH**/ ?>

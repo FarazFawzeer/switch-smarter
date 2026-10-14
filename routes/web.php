@@ -45,6 +45,11 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
     Route::get('contracts/{contract}/renew', [ContractController::class, 'renewForm'])->name('contracts.renew.form');
     Route::post('contracts/{contract}/renew', [ContractController::class, 'renew'])->name('contracts.renew.store');
     Route::post('contracts/{contract}/import-units', [ContractController::class, 'importElevatorUnits'])->name('contracts.units.import');
+    Route::get('contracts/master-list/template', [ContractController::class, 'downloadMasterListTemplate'])
+        ->name('contracts.master-list.template');
+
+    Route::post('contracts/master-list/import', [ContractController::class, 'importMasterList'])
+        ->name('contracts.master-list.import');
 
     Route::resource('sites', SiteController::class);
 

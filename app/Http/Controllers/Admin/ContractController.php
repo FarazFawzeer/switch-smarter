@@ -7,6 +7,8 @@ use App\Models\Contract;
 use App\Models\ContractRenewal;
 use App\Models\User;
 use App\Imports\ElevatorUnitsImport;
+use App\Imports\ContractsMasterListImport;
+use App\Exports\ContractsMasterListTemplateExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
@@ -350,6 +352,65 @@ class ContractController extends Controller
             'success'  => true,
             'message'  => 'Elevator units imported successfully!',
             'redirect' => route('admin.contracts.show', $contract->id),
+        ]);
+    }
+
+    /**
+     * Download the blank Excel template for the master-list bulk upload.
+     */
+    public function downloadMasterListTemplate()
+    {
+        return Excel::download(new ContractsMasterListTemplateExport(), 'contracts-master-list-template.xlsx');
+    }
+
+    /**
+     * Bulk-upload the master list: creates NEW contracts + elevator units only.
+     * Does not update or edit any existing contract/unit.
+     */
+    public function importMasterList(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'master_list_file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        $import = new ContractsMasterListImport();
+
+        try {
+            Excel::import($import, $request->file('master_list_file'));
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'errors'  => ['master_list_file' => ['Could not read the file: ' . $e->getMessage()]]
+            ], 422);
+        }
+
+        if (empty($import->createdContracts) && ! empty($import->errors)) {
+            return response()->json([
+                'success' => false,
+                'errors'  => ['master_list_file' => $import->errors]
+            ], 422);
+        }
+
+        $message = count($import->createdContracts) . ' project(s) added successfully';
+        if (count($import->errors)) {
+            $message .= ', ' . count($import->errors) . ' row(s) skipped (see details).';
+        } else {
+            $message .= '.';
+        }
+
+        return response()->json([
+            'success'    => true,
+            'message'    => $message,
+            'created'    => $import->createdContracts,
+            'row_errors' => $import->errors,
+            'redirect'   => route('admin.contracts.index'),
         ]);
     }
 
