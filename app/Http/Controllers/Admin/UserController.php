@@ -51,6 +51,14 @@ class UserController extends Controller
             ], 422);
         }
 
+        // Only a Super Admin may create another Super Admin
+        if ($request->input('type') === 'Super Admin' && $request->user()->type !== 'Super Admin') {
+            return response()->json([
+                'success' => false,
+                'errors'  => ['type' => ['Only a Super Admin can create another Super Admin.']],
+            ], 422);
+        }
+
         $data = $request->only(['name', 'email', 'type']);
         $data['password'] = Hash::make($request->password);
 

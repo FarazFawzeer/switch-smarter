@@ -20,6 +20,7 @@
 
             
 
+            <?php if(in_array(auth()->user()?->type, ['Super Admin', 'Admin'])): ?>
             <li class="nav-item">
                 <a class="nav-link" href="<?php echo e(route('admin.users.index')); ?>">
                     <span class="nav-icon">
@@ -28,6 +29,7 @@
                     <span class="nav-text">Admin</span>
                 </a>
             </li>
+            <?php endif; ?>
 
             <li class="nav-item">
                 <a class="nav-link" href="<?php echo e(route('admin.team.index')); ?>">

@@ -10,6 +10,7 @@ class ElevatorUnit extends Model
     protected $fillable = [
         'contract_id',
         'identification_no',
+        'unit_number',
         'speed',
         'capacity',
         'unit_type',

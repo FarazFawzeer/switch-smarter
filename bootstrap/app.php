@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'not.technician'  => \App\Http\Middleware\NotTechnician::class,
             'only.technician' => \App\Http\Middleware\OnlyTechnician::class,
             'no.cache'        => \App\Http\Middleware\NoCacheHeaders::class,
+            'role'            => \App\Http\Middleware\EnsureRole::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

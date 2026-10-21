@@ -29,17 +29,21 @@ Route::middleware(['auth', 'not.technician'])->group(function () {
 
 Route::get('/media/{path}', [FileController::class, 'show'])
     ->where('path', '.*')
+    ->middleware('auth')
     ->name('media.show');
 
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'no.cache'])->group(function () {
 
     // system admins
-    Route::resource('users', UserController::class);
+    Route::resource('users', UserController::class)
+        ->only(['index', 'create', 'store', 'destroy'])
+        ->middleware('role:Super Admin,Admin');
 
     // company team hierarchy (engineer / supervisor / technician)
     Route::resource('team', TeamController::class);
 
     // AMC contracts
+    Route::post('contracts/bulk-delete', [ContractController::class, 'bulkDestroy'])->name('contracts.bulk-destroy');
     Route::resource('contracts', ContractController::class);
 
     Route::get('contracts/{contract}/renew', [ContractController::class, 'renewForm'])->name('contracts.renew.form');
@@ -62,6 +66,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
     Route::delete('customers/{customer}', [CustomerController::class, 'destroy'])->name('customers.destroy');
 
     Route::post('routes/quick-create', [RouteController::class, 'quickStore'])->name('routes.quick-store');
+    Route::get('routes', [RouteController::class, 'index'])->name('routes.index');
+    Route::delete('routes/{route}', [RouteController::class, 'destroy'])->name('routes.destroy');
 
     Route::get('monthly-maintenance', [MonthlyMaintenanceController::class, 'index'])->name('monthly-maintenance.index');
 
@@ -71,6 +77,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
 
     Route::prefix('scheduling')->name('scheduling.')->group(function () {
         Route::get('/', [ContractSchedulingController::class, 'index'])->name('index');
+        Route::post('/jobs/{job}/reschedule', [ContractSchedulingController::class, 'reschedule'])->name('jobs.reschedule');
+        Route::post('/jobs/{job}/undo-reschedule', [ContractSchedulingController::class, 'undoReschedule'])->name('jobs.undo-reschedule');
+        Route::post('/{contract}/batches/{batch}/undo', [ContractSchedulingController::class, 'undoBatch'])->name('batches.undo');
+        Route::post('/{contract}/units/{unit}/unschedule', [ContractSchedulingController::class, 'unscheduleUnit'])->name('units.unschedule');
         Route::get('/{contract}/create', [ContractSchedulingController::class, 'create'])->name('create');
         Route::post('/{contract}', [ContractSchedulingController::class, 'store'])->name('store');
         Route::get('/{contract}', [ContractSchedulingController::class, 'show'])->name('show');
@@ -93,6 +103,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
 
     Route::prefix('timesheet-approval')->name('timesheet-approval.')->group(function () {
         Route::get('/', [TimesheetApprovalController::class, 'index'])->name('index');
+        Route::post('/bulk-approve', [TimesheetApprovalController::class, 'bulkApprove'])->name('bulk-approve');
         Route::post('/{attendance}/approve', [TimesheetApprovalController::class, 'approve'])->name('approve');
         Route::post('/{attendance}/reject', [TimesheetApprovalController::class, 'reject'])->name('reject');
     });
@@ -126,9 +137,8 @@ Route::prefix('technician')->name('technician.')->middleware(['auth', 'only.tech
     Route::get('/profile', [TechnicianJobController::class, 'profilePage'])->name('profile');
 });
 
-Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {
-    Route::get('{first}/{second}/{third}', [RoutingController::class, 'thirdLevel'])->name('third');
-    Route::get('{first}/{second}', [RoutingController::class, 'secondLevel'])->name('second');
+Route::group(['prefix' => '/', 'middleware' => ['auth', 'not.technician']], function () {
+    Route::get('{first}/{second}',[RoutingController::class, 'secondLevel'])->name('second');
     Route::get('{any}', [RoutingController::class, 'root'])->name('any');
 });
 

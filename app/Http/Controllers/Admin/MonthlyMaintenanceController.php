@@ -18,9 +18,10 @@ class MonthlyMaintenanceController extends Controller
 
         $query = JobRecord::query()
             ->where('job_type', 'ppm')
+            ->whereNotNull('elevator_unit_id') // orphan visits (unit deleted) are not real PPMs
             ->whereYear('scheduled_date', $year)
             ->whereMonth('scheduled_date', $month)
-            ->with(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit:id,identification_no', 'technician:id,name,employee_id']);
+            ->with(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit:id,identification_no,unit_number', 'technician:id,name,employee_id']);
 
         if ($request->filled('engineer_id')) {
             $query->whereHas('contract', fn ($q) => $q->where('assigned_engineer_id', $request->input('engineer_id')));
@@ -43,16 +44,45 @@ class MonthlyMaintenanceController extends Controller
         }
 
         // Summary counts computed on the FULL filtered set (before status filter/pagination),
-        // via one aggregate query — not a PHP loop, so this stays fast at any scale.
+        // via one aggregate query. Counted per UNIT, so a unit with two visits in a month
+        // can never be counted twice.
         $summaryQuery = clone $query;
         $summary = $summaryQuery->selectRaw("
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status IN ('pending','overdue') AND scheduled_date < ? THEN 1 ELSE 0 END) as overdue,
-                SUM(CASE WHEN status = 'pending' AND scheduled_date >= ? THEN 1 ELSE 0 END) as pending,
-                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-                COUNT(*) as total
+                COUNT(DISTINCT CASE WHEN status = 'completed' THEN elevator_unit_id END) as completed,
+                COUNT(DISTINCT CASE WHEN status IN ('pending','overdue') AND scheduled_date < ? THEN elevator_unit_id END) as overdue,
+                COUNT(DISTINCT CASE WHEN status = 'pending' AND scheduled_date >= ? THEN elevator_unit_id END) as pending,
+                COUNT(DISTINCT CASE WHEN status IN ('in_progress','on_hold') THEN elevator_unit_id END) as in_progress,
+                COUNT(DISTINCT elevator_unit_id) as scheduled
             ", [now()->toDateString(), now()->toDateString()])
             ->first();
+
+        // Total PPMs comes from the MASTER LIST: every unit on an active contract that matches
+        // the filters. With a technician selected, it's the units assigned to that technician.
+        if ($request->filled('technician_id')) {
+            $summary->total = (int) $summary->scheduled;
+            $summary->not_scheduled = null;
+        } else {
+            $masterList = \App\Models\ElevatorUnit::query()
+                ->join('contracts', 'contracts.id', '=', 'elevator_units.contract_id')
+                ->where('contracts.status', 'active');
+
+            if ($request->filled('engineer_id')) {
+                $masterList->where('contracts.assigned_engineer_id', $request->input('engineer_id'));
+            }
+            if ($request->filled('route_id')) {
+                $masterList->where('contracts.route_id', $request->input('route_id'));
+            }
+            if ($request->filled('search')) {
+                $search = $request->input('search');
+                $masterList->where(function ($q) use ($search) {
+                    $q->where('contracts.project_name', 'like', "%{$search}%")
+                        ->orWhere('elevator_units.identification_no', 'like', "%{$search}%");
+                });
+            }
+
+            $summary->total = $masterList->count();
+            $summary->not_scheduled = max(0, $summary->total - (int) $summary->scheduled);
+        }
 
         if ($request->filled('status')) {
             $status = $request->input('status');

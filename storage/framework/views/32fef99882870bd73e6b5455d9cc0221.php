@@ -1,5 +1,3 @@
-
-
 <?php $__env->startSection('content'); ?>
     <?php echo $__env->make('layouts.partials.page-title', ['title' => 'Contracts', 'subtitle' => 'Projects'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
@@ -12,16 +10,20 @@
             'Hotel' => '#9B59B6',
             'Mixed Use' => '#F0A202',
         ];
-        function typeColor($type, $map)
-        {
-            return $map[$type] ?? '#56606f';
+        if (! function_exists('typeColor')) {
+            function typeColor($type, $map)
+            {
+                return $map[$type] ?? '#56606f';
+            }
         }
-        function sortLink($column, $label, $sort, $dir)
-        {
-            $newDir = $sort === $column && $dir === 'asc' ? 'desc' : 'asc';
-            $icon = $sort === $column ? ($dir === 'asc' ? '↑' : '↓') : '';
-            $url = request()->fullUrlWithQuery(['sort' => $column, 'dir' => $newDir]);
-            return "<a href=\"{$url}\">{$label} {$icon}</a>";
+        if (! function_exists('sortLink')) {
+            function sortLink($column, $label, $sort, $dir)
+            {
+                $newDir = $sort === $column && $dir === 'asc' ? 'desc' : 'asc';
+                $icon = $sort === $column ? ($dir === 'asc' ? '↑' : '↓') : '<span style="opacity:.35">↕</span>';
+                $url = e(request()->fullUrlWithQuery(['sort' => $column, 'dir' => $newDir]));
+                return "<a href=\"{$url}\">{$label} {$icon}</a>";
+            }
         }
     ?>
 
@@ -258,6 +260,22 @@
             border-color: #1F4590;
         }
 
+        .ct-bulk-bar {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            background: #EAF0FB;
+            border: 1px solid #cfe0f6;
+            border-radius: 10px;
+            padding: 8px 14px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .ct-bulk-bar.show {
+            display: flex;
+        }
+
         @media (max-width: 767.98px) {
             .ct-toolbar-actions {
                 width: 100%;
@@ -374,6 +392,10 @@
     <div class="d-flex justify-content-end mb-3">
         <div class="ct-toolbar-actions">
             <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
+                data-bs-target="#manageRoutesModal">
+                <iconify-icon icon="solar:routing-2-outline"></iconify-icon> Manage Routes
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
                 data-bs-target="#masterListUploadModal">
                 <iconify-icon icon="solar:upload-outline"></iconify-icon> Bulk Upload
             </button>
@@ -385,13 +407,27 @@
 
     <?php if($view === 'list'): ?>
         
+        <div class="ct-bulk-bar" id="bulkBar">
+            <strong><span id="bulkCount">0</span> row(s) selected</strong>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="bulkDeleteUnits">
+                <iconify-icon icon="solar:trash-bin-minimalistic-outline"></iconify-icon> Delete selected units
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" id="bulkDeleteProjects">
+                <iconify-icon icon="solar:buildings-outline"></iconify-icon> Delete whole projects
+            </button>
+            <button type="button" class="btn btn-sm btn-link text-muted" id="bulkClear">Clear selection</button>
+        </div>
+
         <div class="card ct-stat-card">
             <div class="table-responsive">
                 <table class="ct-list-table">
                     <thead>
                         <tr>
+                            <th style="width:34px;"><input type="checkbox" class="form-check-input" id="selectAllRows"
+                                    title="Select all rows on this page"></th>
                             <th>No</th>
-                            <th>Unit ID</th>
+                            <th><?php echo sortLink('identification_no', 'Unit ID', $sort, $dir); ?></th>
+                            <th><?php echo sortLink('unit_number', 'Unit No', $sort, $dir); ?></th>
                             <th><?php echo sortLink('project_name', 'Project', $sort, $dir); ?></th>
                             <th>
                                 <?php echo sortLink('project_type', 'Type', $sort, $dir); ?>
@@ -408,7 +444,8 @@
                             <th><?php echo sortLink('location', 'Location', $sort, $dir); ?></th>
                             <th><?php echo sortLink('contract_number', 'Contract No', $sort, $dir); ?></th>
                             <th>
-                                Route
+                                <?php echo sortLink('route_no', 'Route', $sort, $dir); ?>
+
                                 <div><select class="ct-filter-select filter-auto" name="route_id" form="filterForm">
                                         <option value="">All</option>
                                         <?php $__currentLoopData = $routes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $route): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -419,7 +456,8 @@
                                     </select></div>
                             </th>
                             <th>
-                                Engineer
+                                <?php echo sortLink('engineer_name', 'Engineer', $sort, $dir); ?>
+
                                 <div><select class="ct-filter-select filter-auto" name="engineer_id" form="filterForm">
                                         <option value="">All</option>
                                         <?php $__currentLoopData = $engineers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $engineer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -429,6 +467,8 @@
                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select></div>
                             </th>
+                            <th><?php echo sortLink('supervisor_name', 'Supervisor', $sort, $dir); ?></th>
+                            <th><?php echo sortLink('technician_name', 'Technician', $sort, $dir); ?></th>
                             <th><?php echo sortLink('contract_start_date', 'Start', $sort, $dir); ?></th>
                             <th><?php echo sortLink('contract_end_date', 'End', $sort, $dir); ?></th>
                             <th>
@@ -458,7 +498,8 @@
                                     </select></div>
                             </th>
                             <th>
-                                Elevator Type
+                                <?php echo sortLink('elevator_type', 'Elevator Type', $sort, $dir); ?>
+
                                 <div><select class="ct-filter-select filter-auto" name="elevator_type" form="filterForm">
                                         <option value="">All</option>
                                         <?php $__currentLoopData = $elevatorTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -468,10 +509,11 @@
                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select></div>
                             </th>
-                            <th>Speed</th>
-                            <th>Capacity</th>
+                            <th><?php echo sortLink('speed', 'Speed', $sort, $dir); ?></th>
+                            <th><?php echo sortLink('capacity', 'Capacity', $sort, $dir); ?></th>
                             <th><?php echo sortLink('brand', 'Brand', $sort, $dir); ?></th>
-                            <th>Model</th>
+                            <th><?php echo sortLink('model', 'Model', $sort, $dir); ?></th>
+                            <th><?php echo sortLink('created_at', 'Log Created', $sort, $dir); ?></th>
                             <th class="text-center">Action</th>
                         </tr>
                     </thead>
@@ -486,8 +528,10 @@
                                 };
                             ?>
                             <tr>
+                                <td><input type="checkbox" class="form-check-input row-select" value="<?php echo e($unit->id); ?>"></td>
                                 <td><?php echo e($units->firstItem() + $loop->index); ?></td>
                                 <td class="fw-semibold"><?php echo e($unit->identification_no); ?></td>
+                                <td><?php echo e($unit->unit_number ?? '—'); ?></td>
                                 <td>
                                     <a href="<?php echo e(route('admin.contracts.show', $unit->contract_id)); ?>"
                                         class="fw-semibold text-dark">
@@ -506,8 +550,10 @@
                                 </td>
                                 <td><?php echo e($unit->location); ?></td>
                                 <td><?php echo e($unit->contract_number); ?></td>
-                                <td><?php echo e(optional($unit->contract->route)->route_no ?? '—'); ?></td>
-                                <td><?php echo e(optional($unit->contract->engineer)->name ?? '—'); ?></td>
+                                <td><?php echo e($unit->route_no ?? '—'); ?></td>
+                                <td><?php echo e($unit->engineer_name ?? '—'); ?></td>
+                                <td><?php echo e($unit->supervisor_name ?? '—'); ?></td>
+                                <td><?php echo e($unit->technician_name ?? '—'); ?></td>
                                 <td><?php echo e(\Carbon\Carbon::parse($unit->contract_start_date)->format('d M Y')); ?></td>
                                 <td><?php echo e(\Carbon\Carbon::parse($unit->contract_end_date)->format('d M Y')); ?></td>
                                 <td><span class="ct-status-pill"
@@ -519,6 +565,10 @@
                                 <td><?php echo e($unit->capacity ?? '—'); ?></td>
                                 <td><?php echo e($unit->brand ?? '—'); ?></td>
                                 <td><?php echo e($unit->model ?? '—'); ?></td>
+                                <td class="text-nowrap" title="<?php echo e($unit->created_at?->format('d M Y h:i A')); ?>">
+                                    <?php echo e($unit->created_at?->format('d M Y') ?? '—'); ?>
+
+                                </td>
                                 <td>
                                     <div class="d-flex justify-content-center gap-2">
                                         <a href="<?php echo e(route('admin.contracts.show', $unit->contract_id)); ?>"
@@ -531,12 +581,18 @@
                                             <iconify-icon icon="solar:pen-2-outline"
                                                 style="font-size: 15px;"></iconify-icon>
                                         </a>
+                                        <button type="button"
+                                            class="ct-icon-btn danger border-0 bg-transparent delete-contract"
+                                            data-id="<?php echo e($unit->contract_id); ?>" title="Delete Project">
+                                            <iconify-icon icon="solar:trash-bin-minimalistic-outline"
+                                                style="font-size: 15px;"></iconify-icon>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                             <tr>
-                                <td colspan="17" class="text-center text-muted py-5">
+                                <td colspan="23" class="text-center text-muted py-5">
                                     <iconify-icon icon="solar:widget-5-outline"
                                         style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                                     <p class="mb-0 mt-2">No units match these filters.</p>
@@ -664,6 +720,40 @@
 
         </div>
     <?php endif; ?>
+
+    <div class="modal fade" id="manageRoutesModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Manage Routes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        Remove a route that was added by mistake. A route that is still linked to a project
+                        cannot be deleted — move those projects to another route first.
+                    </p>
+                    <div id="routesMessage"></div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Route</th>
+                                    <th>Description</th>
+                                    <th>Team</th>
+                                    <th class="text-center">Projects</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="routesTableBody">
+                                <tr><td colspan="5" class="text-center text-muted py-3">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="modal fade" id="masterListUploadModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -799,12 +889,145 @@
                                     Swal.fire('Deleted!', data.message, 'success').then(() =>
                                         location.reload());
                                 } else {
-                                    Swal.fire('Error!', data.message, 'error');
+                                    Swal.fire('Cannot delete', data.message, 'error');
                                 }
                             });
                     }
                 });
             });
+        });
+
+        // ===== Master list: select rows + bulk delete =====
+        const rowSelects = Array.from(document.querySelectorAll('.row-select'));
+        const selectAllRows = document.getElementById('selectAllRows');
+        const bulkBar = document.getElementById('bulkBar');
+
+        function selectedUnitIds() {
+            return rowSelects.filter(c => c.checked).map(c => parseInt(c.value));
+        }
+
+        function refreshBulkBar() {
+            if (!bulkBar) return;
+            const count = selectedUnitIds().length;
+            document.getElementById('bulkCount').textContent = count;
+            bulkBar.classList.toggle('show', count > 0);
+            if (selectAllRows) {
+                selectAllRows.checked = rowSelects.length > 0 && count === rowSelects.length;
+                selectAllRows.indeterminate = count > 0 && count < rowSelects.length;
+            }
+        }
+
+        selectAllRows?.addEventListener('change', function() {
+            rowSelects.forEach(c => c.checked = this.checked);
+            refreshBulkBar();
+        });
+        rowSelects.forEach(c => c.addEventListener('change', refreshBulkBar));
+        document.getElementById('bulkClear')?.addEventListener('click', function() {
+            rowSelects.forEach(c => c.checked = false);
+            refreshBulkBar();
+        });
+
+        function bulkDelete(mode) {
+            const ids = selectedUnitIds();
+            if (!ids.length) return;
+
+            const text = mode === 'projects'
+                ? 'This permanently deletes every project the selected rows belong to, with ALL of their units and scheduled visits. Projects with recorded maintenance work are skipped.'
+                : `This permanently deletes ${ids.length} selected unit(s) and their upcoming visits. Units with recorded maintenance work are skipped.`;
+
+            Swal.fire({
+                title: mode === 'projects' ? 'Delete whole projects?' : 'Delete selected units?',
+                text: text,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Yes, delete'
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+
+                fetch("<?php echo e(route('admin.contracts.bulk-destroy')); ?>", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': "<?php echo e(csrf_token()); ?>",
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ mode: mode, unit_ids: ids })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const skipped = (data.skipped || []).length
+                                ? '<br><br><small>Skipped:<br>' + data.skipped.map(s => s.replace(/</g, '&lt;')).join('<br>') + '</small>'
+                                : '';
+                            Swal.fire({ title: 'Done', html: data.message + skipped, icon: 'success' })
+                                .then(() => location.reload());
+                        } else {
+                            Swal.fire('Error!', Object.values(data.errors || {}).flat().join('<br>') || 'Delete failed.', 'error');
+                        }
+                    });
+            });
+        }
+
+        document.getElementById('bulkDeleteUnits')?.addEventListener('click', () => bulkDelete('units'));
+        document.getElementById('bulkDeleteProjects')?.addEventListener('click', () => bulkDelete('projects'));
+
+        // ===== Manage Routes =====
+        const routesBody = document.getElementById('routesTableBody');
+        const routesMessage = document.getElementById('routesMessage');
+        let routesChanged = false;
+
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
+        }
+
+        function loadRoutes() {
+            fetch("<?php echo e(route('admin.routes.index')); ?>", { headers: { 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.routes.length) {
+                        routesBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No routes yet.</td></tr>';
+                        return;
+                    }
+                    routesBody.innerHTML = data.routes.map(route => `
+                        <tr>
+                            <td class="fw-semibold">${escapeHtml(route.route_no)}</td>
+                            <td>${escapeHtml(route.description) || '<span class="text-muted">—</span>'}</td>
+                            <td class="small">${escapeHtml(route.people) || '<span class="text-muted">—</span>'}</td>
+                            <td class="text-center">${route.contracts_count}</td>
+                            <td class="text-end">
+                                ${route.contracts_count > 0
+                                    ? '<span class="small text-muted" title="Linked to projects">In use</span>'
+                                    : `<button type="button" class="btn btn-sm btn-outline-danger delete-route" data-id="${route.id}" data-name="${escapeHtml(route.route_no)}">Delete</button>`}
+                            </td>
+                        </tr>`).join('');
+
+                    routesBody.querySelectorAll('.delete-route').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            if (!confirm(`Delete route ${this.dataset.name}?`)) return;
+                            fetch("<?php echo e(url('admin/routes')); ?>/" + this.dataset.id, {
+                                    method: 'DELETE',
+                                    headers: { 'X-CSRF-TOKEN': "<?php echo e(csrf_token()); ?>", 'Accept': 'application/json' }
+                                })
+                                .then(r => r.json())
+                                .then(res => {
+                                    routesChanged = routesChanged || res.success;
+                                    routesMessage.innerHTML = `<div class="alert alert-${res.success ? 'success' : 'danger'} py-2">${escapeHtml(res.message)}</div>`;
+                                    loadRoutes();
+                                });
+                        });
+                    });
+                });
+        }
+
+        document.getElementById('manageRoutesModal').addEventListener('show.bs.modal', function() {
+            routesMessage.innerHTML = '';
+            loadRoutes();
+        });
+        document.getElementById('manageRoutesModal').addEventListener('hidden.bs.modal', function() {
+            if (routesChanged) location.reload(); // refresh the route filter list
         });
     </script>
 <?php $__env->stopSection(); ?>

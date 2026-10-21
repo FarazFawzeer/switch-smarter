@@ -20,6 +20,8 @@ class JobTrackingController extends Controller
 
         $jobs->getCollection()->transform(function ($job) {
             $job->attendance = $this->matchingAttendance($job);
+            // Normal/OT for THIS job (this project/unit), not the technician's whole day
+            $job->hours = $job->workedHours(optional($job->technician)->shift);
             return $job;
         });
 
@@ -40,16 +42,13 @@ class JobTrackingController extends Controller
     }
 
     /**
-     * Daily Normal Time / Overtime / HOT (day-off) breakdown for one technician,
+     * Daily Normal Time / Overtime / HOT (total hours worked) for one technician,
      * across the selected date range (defaults to the current month).
+     * A day without any work shows 0 for every series.
      */
     private function buildWorkingHoursChart(int $technicianId, ?string $from, ?string $to): array
     {
-        $technician = User::with('shift')->find($technicianId);
-        $shiftHours = $technician?->shift
-            ? \Illuminate\Support\Carbon::parse($technician->shift->start_time)
-            ->diffInHours(\Illuminate\Support\Carbon::parse($technician->shift->end_time))
-            : 8;
+        $technician = User::find($technicianId);
 
         $rangeStart = $from ? \Illuminate\Support\Carbon::parse($from) : now()->startOfMonth();
         $rangeEnd = $to ? \Illuminate\Support\Carbon::parse($to) : now()->endOfMonth();
@@ -71,17 +70,18 @@ class JobTrackingController extends Controller
 
             $record = $attendanceByDate->get($dateKey);
 
-            if ($record) {
+            $worked = $record ? (float) ($record->total_hours ?? 0) : 0.0;
+
+            if ($worked > 0) {
                 $ot = (float) ($record->ot_hours ?? 0);
-                $normal = max(0, (float) ($record->total_hours ?? 0) - $ot);
-                $normalTime[] = round($normal, 1);
+                $normalTime[] = round(max(0, $worked - $ot), 1);
                 $overTime[] = round($ot, 1);
-                $hot[] = 0;
+                $hot[] = round($worked, 1);
             } else {
-                // No attendance record at all this day = off/holiday — shown as a full-height reference bar
+                // No work this day — every series is 0 (previously HOT showed a full shift here)
                 $normalTime[] = 0;
                 $overTime[] = 0;
-                $hot[] = $shiftHours;
+                $hot[] = 0;
             }
 
             $cursor->addDay();
@@ -104,10 +104,11 @@ class JobTrackingController extends Controller
 
         $callback = function () use ($jobs) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['No', 'Technician', 'Project / Unit', 'Date Commenced', 'Check-in', 'Check-out', 'Work Shift', 'Work Type', 'Normal Time', 'Overtime', 'Supervisor Approval', 'Engineer Approval', 'Manager Approval', 'Status']);
+            fputcsv($handle, ['No', 'Technician', 'Project / Unit', 'Date Commenced', 'Check-in', 'Check-in Location', 'Check-out', 'Work Shift', 'Work Type', 'Normal Time', 'Overtime', 'Supervisor Approval', 'Engineer Approval', 'Manager Approval', 'Status']);
 
             foreach ($jobs as $index => $job) {
                 $attendance = $this->matchingAttendance($job);
+                $hours = $job->workedHours(optional($job->technician)->shift);
 
                 fputcsv($handle, [
                     $index + 1,
@@ -115,11 +116,12 @@ class JobTrackingController extends Controller
                     (optional($job->contract)->project_name ?? '—') . ' / ' . (optional($job->unit)->identification_no ?? '—'),
                     $job->check_in_time?->format('d M Y'),
                     $job->check_in_time?->format('h:i A'),
+                    $job->check_in_lat && $job->check_in_lng ? $job->check_in_lat . ', ' . $job->check_in_lng : '—',
                     $job->check_out_time?->format('h:i A') ?? 'Not yet',
                     optional(optional($attendance)->shift)->name ?? '—',
                     $this->workTypeLabel($job->job_type),
-                    $attendance ? number_format(max(0, ($attendance->total_hours ?? 0) - ($attendance->ot_hours ?? 0)), 2) . 'h' : '—',
-                    $attendance && $attendance->ot_hours > 0 ? number_format($attendance->ot_hours, 2) . 'h' : '0h',
+                    $hours ? number_format($hours['normal'], 2) . 'h' : '—',
+                    $hours ? number_format($hours['ot'], 2) . 'h' : '—',
                     $attendance?->supervisor_approved_at ? 'Approved' : 'Pending',
                     $attendance?->engineer_approved_at ? 'Approved' : 'Pending',
                     $attendance?->manager_approved_at ? 'Approved' : 'Pending',
@@ -149,7 +151,7 @@ class JobTrackingController extends Controller
      */
     private function buildFilteredQuery(Request $request)
     {
-        $query = JobRecord::with(['technician:id,name,employee_id', 'contract:id,project_name,location', 'unit:id,identification_no'])
+        $query = JobRecord::with(['technician:id,name,employee_id,shift_id', 'technician.shift', 'contract:id,project_name,location', 'unit:id,identification_no,unit_number'])
             ->whereNotNull('check_in_time');
 
         if ($request->filled('technician_id')) {

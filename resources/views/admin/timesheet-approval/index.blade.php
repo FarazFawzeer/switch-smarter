@@ -38,6 +38,15 @@
         .ap-ot-pill { background: rgba(214,69,69,0.10); color: #D64545; font-weight: 700; font-size: 11px; padding: 3px 10px; border-radius: 6px; }
         .ap-employee-cell { display: flex; align-items: center; gap: 10px; }
         .ap-employee-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+        .ap-employee-toggle { cursor: pointer; }
+        .ap-employee-toggle:hover .fw-semibold { color: #2E5AAC; text-decoration: underline; }
+        .ap-chevron { transition: transform .15s ease; color: #8792a2; }
+        .ap-row-open .ap-chevron { transform: rotate(90deg); }
+        .ap-detail-row > td { background: #FAFBFD; padding: 0 14px 14px 56px !important; }
+        .ap-detail-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+        .ap-detail-table th { color: #8792a2; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid #e7e9ee; white-space: nowrap; }
+        .ap-detail-table td { padding: 7px 10px; border-bottom: 1px solid #f0f1f4; }
+        .ap-bulk-bar { display: flex; align-items: center; gap: 10px; }
     </style>
 
     {{-- Admin testing banner --}}
@@ -147,13 +156,22 @@
                     <span class="text-muted small fw-normal">— all technicians in view</span>
                 @endif
             </h6>
-            <span class="text-muted small">{{ $records->count() }} record(s)</span>
+            <div class="ap-bulk-bar">
+                <span class="text-muted small">{{ $records->count() }} record(s)</span>
+                <button type="button" id="bulkApproveBtn" class="btn btn-sm btn-success" disabled>
+                    <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
+                    Approve selected (<span id="selectedCount">0</span>)
+                </button>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="ap-table">
                 <thead>
                     <tr>
-<th>No</th>
+                        <th style="width:36px;">
+                            <input type="checkbox" class="form-check-input" id="selectAll" title="Select all days you can approve">
+                        </th>
+                        <th>No</th>
                         <th>Employee</th>
                         <th>Shift</th>
                         <th>Date</th>
@@ -184,10 +202,17 @@
                             $expectedStatus = ['supervisor' => 'pending', 'engineer' => 'supervisor_approved', 'manager' => 'engineer_approved'][$stage] ?? null;
                             $canAct = $record->approval_status === $expectedStatus;
                         @endphp
-                        <tr>
+                        <tr id="ap-row-{{ $record->id }}">
+                            <td>
+                                @if($canAct)
+                                    <input type="checkbox" class="form-check-input row-check" value="{{ $record->id }}">
+                                @endif
+                            </td>
                             <td>{{ $loop->iteration }}</td>
                             <td>
-                                <div class="ap-employee-cell">
+                                <div class="ap-employee-cell ap-employee-toggle" data-target="ap-detail-{{ $record->id }}"
+                                    title="Show every unit worked on this day">
+                                    <iconify-icon icon="solar:alt-arrow-right-outline" class="ap-chevron"></iconify-icon>
                                     <img src="{{ storage_asset(optional($record->technician)->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
                                         class="ap-employee-avatar" alt="">
                                     <div>
@@ -237,9 +262,58 @@
                                 @endif
                             </td>
                         </tr>
+                        <tr class="ap-detail-row d-none" id="ap-detail-{{ $record->id }}">
+                            <td colspan="11">
+                                @if(($record->day_jobs ?? collect())->isEmpty())
+                                    <p class="text-muted small mb-0 pt-2">No unit activity was recorded for this day.</p>
+                                @else
+                                    <table class="ap-detail-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Unit</th>
+                                                <th>Project</th>
+                                                <th>Work Type</th>
+                                                <th>Start</th>
+                                                <th>Start Location</th>
+                                                <th>End</th>
+                                                <th>Normal</th>
+                                                <th>OT</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($record->day_jobs as $dayJob)
+                                                <tr>
+                                                    <td class="fw-semibold">
+                                                        {{ optional($dayJob->unit)->identification_no ?? '—' }}
+                                                        @if(optional($dayJob->unit)->unit_number)
+                                                            <span class="text-muted fw-normal">({{ $dayJob->unit->unit_number }})</span>
+                                                        @endif
+                                                    </td>
+                                                    <td>{{ optional($dayJob->contract)->project_name ?? '—' }}</td>
+                                                    <td>{{ ['ppm' => 'Maintenance', 'breakdown' => 'Breakdown', 'repair' => 'Repair', 'casual_job' => 'Casual Job'][$dayJob->job_type] ?? ucfirst($dayJob->job_type) }}</td>
+                                                    <td>{{ $dayJob->check_in_time->format('h:i A') }}</td>
+                                                    <td>
+                                                        @if($dayJob->check_in_lat && $dayJob->check_in_lng)
+                                                            <a href="https://www.google.com/maps?q={{ $dayJob->check_in_lat }},{{ $dayJob->check_in_lng }}" target="_blank">View map</a>
+                                                        @else
+                                                            —
+                                                        @endif
+                                                    </td>
+                                                    <td>{{ $dayJob->check_out_time?->format('h:i A') ?? 'Not finished' }}</td>
+                                                    <td>{{ $dayJob->hours ? number_format($dayJob->hours['normal'], 2) . 'h' : '—' }}</td>
+                                                    <td>{{ $dayJob->hours && $dayJob->hours['ot'] > 0 ? number_format($dayJob->hours['ot'], 2) . 'h' : '—' }}</td>
+                                                    <td>{{ ucfirst(str_replace('_', ' ', $dayJob->status)) }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                @endif
+                            </td>
+                        </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center text-muted py-5">
+                            <td colspan="11" class="text-center text-muted py-5">
                                 No timesheet records found for this selection.
                             </td>
                         </tr>
@@ -253,6 +327,68 @@
         document.querySelectorAll('.filter-auto').forEach(select => {
             select.addEventListener('change', function() {
                 document.getElementById('selectionForm').submit();
+            });
+        });
+
+        // ===== Expand a technician row to see every unit's times for that day =====
+        document.querySelectorAll('.ap-employee-toggle').forEach(cell => {
+            cell.addEventListener('click', function() {
+                const detail = document.getElementById(this.dataset.target);
+                detail.classList.toggle('d-none');
+                this.closest('tr').classList.toggle('ap-row-open', !detail.classList.contains('d-none'));
+            });
+        });
+
+        // ===== Select all / selected approval =====
+        const rowChecks = Array.from(document.querySelectorAll('.row-check'));
+        const selectAll = document.getElementById('selectAll');
+        const bulkBtn = document.getElementById('bulkApproveBtn');
+        const selectedCount = document.getElementById('selectedCount');
+
+        function refreshSelection() {
+            const checked = rowChecks.filter(c => c.checked).length;
+            selectedCount.textContent = checked;
+            bulkBtn.disabled = checked === 0;
+            selectAll.checked = rowChecks.length > 0 && checked === rowChecks.length;
+            selectAll.indeterminate = checked > 0 && checked < rowChecks.length;
+        }
+
+        selectAll.disabled = rowChecks.length === 0;
+        selectAll.addEventListener('change', function() {
+            rowChecks.forEach(c => c.checked = this.checked);
+            refreshSelection();
+        });
+        rowChecks.forEach(c => c.addEventListener('change', refreshSelection));
+
+        bulkBtn.addEventListener('click', function() {
+            const ids = rowChecks.filter(c => c.checked).map(c => parseInt(c.value));
+            if (!ids.length) return;
+
+            Swal.fire({
+                title: `Approve ${ids.length} day(s)?`,
+                text: 'All selected timesheet days will move to the next approval stage.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#2E9E5B',
+                confirmButtonText: 'Yes, approve all'
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+                bulkBtn.disabled = true;
+
+                fetch("{{ route('admin.timesheet-approval.bulk-approve') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ ids })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        Swal.fire(data.success ? 'Approved!' : 'Nothing approved', data.message, data.success ? 'success' : 'warning')
+                            .then(() => location.reload());
+                    });
             });
         });
 

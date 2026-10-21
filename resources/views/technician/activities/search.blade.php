@@ -25,7 +25,9 @@
     <div id="unitResults"></div>
 
     <p class="text-muted small mt-2">
-        @if(in_array($type, ['ppm', 'casual_job']))
+        @if($type === 'ppm')
+            Shows this month's visit for each of your units, plus units with no PPM scheduled this month.
+        @elseif($type === 'casual_job')
             Showing units with an existing {{ strtolower($labelMap[$type]) }} assigned to you.
         @else
             Search any unit — this will create a new {{ strtolower($labelMap[$type]) }} report.
@@ -55,10 +57,23 @@
                         data.results.forEach(item => {
                             const card = document.createElement('div');
                             card.className = 'card mb-2 unit-result-card';
-                            card.innerHTML = `<div class="card-body py-3">
-                                <div class="fw-bold">${item.unit_id}</div>
-                                <div class="small text-muted">${item.project}</div>
-                            </div>`;
+                            const body = document.createElement('div');
+                            body.className = 'card-body py-3';
+                            const title = document.createElement('div');
+                            title.className = 'fw-bold';
+                            title.textContent = item.unit_id;
+                            const project = document.createElement('div');
+                            project.className = 'small text-muted';
+                            project.textContent = item.project;
+                            body.append(title, project);
+                            if (item.note) {
+                                const note = document.createElement('div');
+                                note.className = 'small fw-semibold mt-1';
+                                note.style.color = item.mode === 'new' ? '#B57900' : '{{ $color }}';
+                                note.textContent = item.note;
+                                body.appendChild(note);
+                            }
+                            card.appendChild(body);
 
                             if (item.mode === 'existing') {
                                 card.addEventListener('click', () => window.location.href = item.url);
@@ -80,7 +95,7 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) { window.location.href = data.redirect; }
-                    else { alert('Something went wrong. Please try again.'); }
+                    else { alert(Object.values(data.errors || {}).flat().join('\n') || 'Something went wrong. Please try again.'); }
                 });
         }
     </script>

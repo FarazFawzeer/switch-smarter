@@ -30,6 +30,7 @@
                     </a>
                </li> --}}
 
+            @if(in_array(auth()->user()?->type, ['Super Admin', 'Admin']))
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('admin.users.index') }}">
                     <span class="nav-icon">
@@ -38,6 +39,7 @@
                     <span class="nav-text">Admin</span>
                 </a>
             </li>
+            @endif
 
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('admin.team.index') }}">

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\JobRecord;
 use App\Models\TechnicianAttendance;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -46,9 +47,7 @@ class TimesheetApprovalController extends Controller
             $engineers = collect([$user->engineer])->filter();
             $technicians = $user->technicians()->select('id', 'name', 'employee_id')->get();
 
-            $technicianIds = $request->filled('technician_id')
-                ? [$request->input('technician_id')]
-                : $technicians->pluck('id')->toArray();
+            $technicianIds = $this->scopedTechnicianIds($request, $technicians);
 
             $records = $this->fetchRecords($technicianIds, ['pending'], 'both', false);
 
@@ -56,7 +55,8 @@ class TimesheetApprovalController extends Controller
             $supervisors = $user->supervisors()->select('id', 'name')->get();
 
             if ($request->filled('supervisor_id')) {
-                $selectedSupervisor = User::find($request->input('supervisor_id'));
+                // Only supervisors who report to this engineer can be selected
+                $selectedSupervisor = $supervisors->firstWhere('id', (int) $request->input('supervisor_id'));
                 $technicians = $selectedSupervisor ? $selectedSupervisor->technicians()->select('id', 'name', 'employee_id')->get() : collect();
             } else {
                 $technicians = User::where('type', 'Technician')
@@ -65,9 +65,7 @@ class TimesheetApprovalController extends Controller
                     ->get();
             }
 
-            $technicianIds = $request->filled('technician_id')
-                ? [$request->input('technician_id')]
-                : $technicians->pluck('id')->toArray();
+            $technicianIds = $this->scopedTechnicianIds($request, $technicians);
 
             $records = $this->fetchRecords($technicianIds, ['supervisor_approved'], 'both', false);
 
@@ -83,11 +81,59 @@ class TimesheetApprovalController extends Controller
 
     public function approve(Request $request, TechnicianAttendance $attendance)
     {
+        if (! $this->approveRecord(Auth::user(), $attendance)) {
+            return response()->json(['success' => false, 'message' => 'You are not authorized to approve this record at its current stage.'], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Timesheet day approved and moved to the next stage.',
+        ]);
+    }
+
+    /**
+     * Approve several days at once ("Select all" / ticked rows). Each record is checked
+     * individually, so anything the user can't approve at its current stage is skipped.
+     */
+    public function bulkApprove(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'ids'   => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer'],
+        ], [
+            'ids.required' => 'Select at least one timesheet day to approve.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
+        }
+
         $user = Auth::user();
+        $approved = 0;
+        $skipped = 0;
+
+        TechnicianAttendance::with('technician.supervisor')
+            ->whereIn('id', $request->input('ids'))
+            ->get()
+            ->each(function ($attendance) use ($user, &$approved, &$skipped) {
+                $this->approveRecord($user, $attendance) ? $approved++ : $skipped++;
+            });
+
+        $message = "{$approved} timesheet day(s) approved and moved to the next stage.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} skipped (not at your approval stage).";
+        }
+
+        return response()->json(['success' => $approved > 0, 'message' => $message]);
+    }
+
+    /** Moves one record to the next approval stage. Returns false if the user can't act on it. */
+    private function approveRecord(User $user, TechnicianAttendance $attendance): bool
+    {
         $stage = $this->authorizeAndGetStage($user, $attendance);
 
         if (! $stage) {
-            return response()->json(['success' => false, 'message' => 'You are not authorized to approve this record at its current stage.'], 403);
+            return false;
         }
 
         $updates = ['rejection_reason' => null];
@@ -108,10 +154,7 @@ class TimesheetApprovalController extends Controller
 
         $attendance->update($updates);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Timesheet day approved and moved to the next stage.',
-        ]);
+        return true;
     }
 
     public function reject(Request $request, TechnicianAttendance $attendance)
@@ -193,6 +236,23 @@ class TimesheetApprovalController extends Controller
     }
 
     /**
+     * A technician_id filter is honoured only if that technician is in the
+     * caller's own team; otherwise the result is empty rather than leaking records.
+     */
+    private function scopedTechnicianIds(Request $request, $technicians): array
+    {
+        $allowedIds = $technicians->pluck('id')->toArray();
+
+        if (! $request->filled('technician_id')) {
+            return $allowedIds;
+        }
+
+        $requested = (int) $request->input('technician_id');
+
+        return in_array($requested, $allowedIds, true) ? [$requested] : [];
+    }
+
+    /**
      * Shared query builder.
      * $monthFilter: 'current', 'previous', or 'both'.
      * $allowStatusOverride: when true (admin view), $statuses is used as an exact filter
@@ -230,6 +290,41 @@ class TimesheetApprovalController extends Controller
             });
         }
 
-        return $query->orderByDesc('work_date')->orderBy('technician_id')->get();
+        $records = $query->orderByDesc('work_date')->orderBy('technician_id')->get();
+
+        $this->attachDayJobs($records);
+
+        return $records;
+    }
+
+    /**
+     * Attaches every job the technician worked on that day (unit, project, start/end,
+     * location, hours) to each record, for the expandable "units time" detail row.
+     */
+    private function attachDayJobs($records): void
+    {
+        if ($records->isEmpty()) {
+            return;
+        }
+
+        $jobs = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no,unit_number', 'technician:id,shift_id', 'technician.shift'])
+            ->whereIn('assigned_technician_id', $records->pluck('technician_id')->unique())
+            ->whereNotNull('check_in_time')
+            ->whereBetween('check_in_time', [
+                $records->min('work_date')->copy()->startOfDay(),
+                $records->max('work_date')->copy()->endOfDay(),
+            ])
+            ->orderBy('check_in_time')
+            ->get()
+            ->groupBy(fn ($job) => $job->assigned_technician_id . '|' . $job->check_in_time->toDateString());
+
+        $records->each(function ($record) use ($jobs) {
+            $dayJobs = $jobs->get($record->technician_id . '|' . $record->work_date->toDateString(), collect());
+
+            $record->day_jobs = $dayJobs->map(function ($job) {
+                $job->hours = $job->workedHours(optional($job->technician)->shift);
+                return $job;
+            });
+        });
     }
 }

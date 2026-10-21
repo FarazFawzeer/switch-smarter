@@ -143,6 +143,7 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>ID No</th>
+                                    <th>Unit No</th>
                                     <th>Unit Type</th>
                                     <th>Elevator Type</th>
                                     <th>Speed</th>
@@ -161,6 +162,7 @@
                                     @endphp
                                     <tr>
                                         <td>{{ $unit->identification_no }}</td>
+                                        <td>{{ $unit->unit_number ?? '—' }}</td>
                                         <td>{{ $unit->unit_type }}</td>
                                         <td>{{ $unit->elevator_type ?? '—' }}</td>
                                         <td>{{ $unit->speed ?? '—' }}</td>
@@ -173,7 +175,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ 7 + $unitCustomLabels->count() }}"
+                                        <td colspan="{{ 8 + $unitCustomLabels->count() }}"
                                             class="text-center text-muted py-3">No units recorded yet.</td>
                                     </tr>
                                 @endforelse

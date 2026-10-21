@@ -55,13 +55,34 @@ class ContractController extends Controller
             )
             ->with(['contract.route:id,route_no', 'contract.engineer:id,name']);
 
+        // Technician = whoever holds this unit's PPM visit (this month's, else the nearest one),
+        // falling back to the contract's technician. Different units of one project can
+        // therefore show different technicians.
+        $monthStart = now()->startOfMonth()->toDateString();
+        $unitTechnicianSql = "(SELECT j.assigned_technician_id FROM jobs_records j
+                WHERE j.elevator_unit_id = elevator_units.id AND j.job_type = 'ppm' AND j.assigned_technician_id IS NOT NULL
+                ORDER BY (j.scheduled_date < '{$monthStart}') ASC,
+                         CASE WHEN j.scheduled_date >= '{$monthStart}' THEN j.scheduled_date END ASC,
+                         j.scheduled_date DESC
+                LIMIT 1)";
+        $technicianIdSql = "COALESCE({$unitTechnicianSql}, contracts.assigned_technician_id)";
+
+        $query->selectRaw("(SELECT name FROM users WHERE users.id = {$technicianIdSql}) AS technician_name")
+            ->selectRaw("COALESCE(
+                    (SELECT name FROM users WHERE users.id = contracts.assigned_supervisor_id),
+                    (SELECT s.name FROM users t JOIN users s ON s.id = t.supervisor_id WHERE t.id = {$technicianIdSql})
+                ) AS supervisor_name")
+            ->selectRaw('(SELECT route_no FROM routes WHERE routes.id = contracts.route_id) AS route_no')
+            ->selectRaw('(SELECT name FROM users WHERE users.id = contracts.assigned_engineer_id) AS engineer_name');
+
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('contracts.project_name', 'like', "%{$search}%")
                     ->orWhere('contracts.location', 'like', "%{$search}%")
                     ->orWhere('contracts.contract_number', 'like', "%{$search}%")
-                    ->orWhere('elevator_units.identification_no', 'like', "%{$search}%");
+                    ->orWhere('elevator_units.identification_no', 'like', "%{$search}%")
+                    ->orWhere('elevator_units.unit_number', 'like', "%{$search}%");
             });
         }
 
@@ -98,15 +119,25 @@ class ContractController extends Controller
             'contract_end_date'    => 'contracts.contract_end_date',
             'contract_status'      => 'contracts.status',
             'identification_no'    => 'elevator_units.identification_no',
+            'unit_number'          => 'elevator_units.unit_number',
             'unit_type'            => 'elevator_units.unit_type',
+            'elevator_type'        => 'elevator_units.elevator_type',
+            'speed'                => 'elevator_units.speed',
+            'capacity'             => 'elevator_units.capacity',
             'brand'                => 'elevator_units.brand',
+            'model'                => 'elevator_units.model',
+            'created_at'           => 'elevator_units.created_at',
+            'route_no'             => 'route_no',
+            'engineer_name'        => 'engineer_name',
+            'technician_name'      => 'technician_name',
+            'supervisor_name'      => 'supervisor_name',
         ];
 
         $sort = $request->get('sort');
         $dir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
 
         if ($sort && array_key_exists($sort, $sortable)) {
-            $query->orderBy($sortable[$sort], $dir);
+            $query->orderBy($sortable[$sort], $dir)->orderBy('elevator_units.id', $dir);
         } else {
             $query->orderBy('contracts.project_name')->orderBy('elevator_units.identification_no');
         }
@@ -288,20 +319,50 @@ class ContractController extends Controller
             $data['contract_document'] = 'contracts/' . $filename;
         }
 
-        DB::transaction(function () use ($contract, $data, $elevators) {
+        // Units are updated IN PLACE (matched by id, then by identification no) — never
+        // deleted and re-created, because that orphaned every PPM visit already scheduled
+        // for them and caused duplicate visits / wrong unit counts.
+        $existingUnits = $contract->elevatorUnits()->get();
+        $plan = $this->planUnitSync($existingUnits, $elevators);
+
+        if (! empty($elevators) && $plan['removed']->isNotEmpty()) {
+            $blockedIds = $this->unitIdsWithWorkHistory($plan['removed']->pluck('id')->all());
+            if ($blockedIds->isNotEmpty()) {
+                $blockedNames = $plan['removed']->whereIn('id', $blockedIds->all())->pluck('identification_no');
+
+                return response()->json([
+                    'success' => false,
+                    'errors'  => ['elevators' => [
+                        'These units already have maintenance work recorded and cannot be removed: '
+                        . $blockedNames->implode(', ') . '. Keep the same number of units, or remove other units instead.',
+                    ]],
+                ], 422);
+            }
+        }
+
+        DB::transaction(function () use ($contract, $data, $elevators, $plan) {
             $contract->update($data);
 
-            if (! empty($elevators)) {
-                $contract->elevatorUnits()->delete();
-                foreach ($elevators as $elevator) {
-                    $elevator['custom_fields'] = $this->buildCustomFields(
-                        $elevator['custom_field_labels'] ?? [],
-                        $elevator['custom_field_values'] ?? []
-                    );
-                    unset($elevator['custom_field_labels'], $elevator['custom_field_values']);
+            if (empty($elevators)) {
+                return;
+            }
 
+            foreach ($plan['rows'] as [$unit, $elevator]) {
+                $elevator['custom_fields'] = $this->buildCustomFields(
+                    $elevator['custom_field_labels'] ?? [],
+                    $elevator['custom_field_values'] ?? []
+                );
+                unset($elevator['custom_field_labels'], $elevator['custom_field_values'], $elevator['id']);
+
+                if ($unit) {
+                    $unit->update($elevator);
+                } else {
                     $contract->elevatorUnits()->create($elevator);
                 }
+            }
+
+            if ($plan['removed']->isNotEmpty()) {
+                $this->deleteUnitsAndPendingVisits($plan['removed']->pluck('id')->all());
             }
         });
 
@@ -314,16 +375,172 @@ class ContractController extends Controller
 
     public function destroy(Contract $contract)
     {
-        if ($contract->contract_document) {
-            Storage::disk('public')->delete($contract->contract_document);
+        if ($this->contractHasWorkHistory($contract->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This project already has maintenance work recorded, so it cannot be deleted. Mark it as Cancelled or Expired instead.',
+            ], 422);
         }
 
-        $contract->delete();
+        $this->deleteContract($contract);
 
         return response()->json([
             'success' => true,
             'message' => 'Project deleted successfully!'
         ]);
+    }
+
+    /**
+     * Master list bulk delete — removes the selected UNITS, or the whole PROJECTS
+     * those units belong to. Anything with recorded maintenance work is skipped.
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'mode'       => ['required', Rule::in(['units', 'projects'])],
+            'unit_ids'   => ['required', 'array', 'min:1'],
+            'unit_ids.*' => ['integer'],
+        ], [
+            'unit_ids.required' => 'Select at least one row first.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $visibleContractIds = Contract::visibleTo(Auth::user())->pluck('id');
+        $units = \App\Models\ElevatorUnit::whereIn('id', $request->input('unit_ids'))
+            ->whereIn('contract_id', $visibleContractIds)
+            ->get(['id', 'contract_id', 'identification_no']);
+
+        $deleted = 0;
+        $skipped = [];
+
+        if ($request->input('mode') === 'projects') {
+            $contracts = Contract::whereIn('id', $units->pluck('contract_id')->unique())->get();
+
+            foreach ($contracts as $contract) {
+                if ($this->contractHasWorkHistory($contract->id)) {
+                    $skipped[] = $contract->project_name . ' (has maintenance work recorded)';
+                    continue;
+                }
+                $this->deleteContract($contract);
+                $deleted++;
+            }
+
+            $message = "{$deleted} project(s) deleted.";
+        } else {
+            $blockedIds = $this->unitIdsWithWorkHistory($units->pluck('id')->all());
+            $deletable = $units->reject(fn ($u) => $blockedIds->contains((int) $u->id));
+
+            foreach ($units->whereIn('id', $blockedIds->all()) as $unit) {
+                $skipped[] = $unit->identification_no . ' (has maintenance work recorded)';
+            }
+
+            DB::transaction(function () use ($deletable) {
+                $this->deleteUnitsAndPendingVisits($deletable->pluck('id')->all());
+
+                // keep each project's unit count in line with what's left
+                foreach ($deletable->pluck('contract_id')->unique() as $contractId) {
+                    Contract::whereKey($contractId)->update([
+                        'number_of_elevators' => \App\Models\ElevatorUnit::where('contract_id', $contractId)->count(),
+                    ]);
+                }
+            });
+
+            $deleted = $deletable->count();
+            $message = "{$deleted} unit(s) deleted.";
+        }
+
+        if ($skipped) {
+            $message .= ' ' . count($skipped) . ' skipped.';
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'skipped' => $skipped,
+        ]);
+    }
+
+    /**
+     * Pairs each submitted unit row with the existing unit it updates (by id, falling back
+     * to identification no), and lists existing units no longer present in the form.
+     */
+    private function planUnitSync($existingUnits, array $elevators): array
+    {
+        $byId = $existingUnits->keyBy('id');
+        $usedIds = [];
+        $rows = [];
+
+        foreach ($elevators as $elevator) {
+            $unit = null;
+            $id = isset($elevator['id']) ? (int) $elevator['id'] : 0;
+
+            if ($id && $byId->has($id) && ! in_array($id, $usedIds, true)) {
+                $unit = $byId->get($id);
+            } else {
+                $unit = $existingUnits->first(fn ($u) => ! in_array($u->id, $usedIds, true)
+                    && strcasecmp($u->identification_no, trim($elevator['identification_no'] ?? '')) === 0);
+            }
+
+            if ($unit) {
+                $usedIds[] = $unit->id;
+            }
+
+            $rows[] = [$unit, $elevator];
+        }
+
+        return [
+            'rows'    => $rows,
+            'removed' => $existingUnits->reject(fn ($u) => in_array($u->id, $usedIds, true))->values(),
+        ];
+    }
+
+    /** IDs of the given units that have any started/completed job. */
+    private function unitIdsWithWorkHistory(array $unitIds)
+    {
+        if (empty($unitIds)) {
+            return collect();
+        }
+
+        return \App\Models\JobRecord::whereIn('elevator_unit_id', $unitIds)
+            ->where(fn ($q) => $q->whereNotNull('check_in_time')->orWhereIn('status', ['in_progress', 'on_hold', 'completed']))
+            ->distinct()
+            ->pluck('elevator_unit_id')
+            ->map(fn ($id) => (int) $id);
+    }
+
+    private function contractHasWorkHistory(int $contractId): bool
+    {
+        return \App\Models\JobRecord::where('contract_id', $contractId)
+            ->where(fn ($q) => $q->whereNotNull('check_in_time')->orWhereIn('status', ['in_progress', 'on_hold', 'completed']))
+            ->exists();
+    }
+
+    /** Deletes units together with their not-yet-started jobs, so no orphan visits are left behind. */
+    private function deleteUnitsAndPendingVisits(array $unitIds): void
+    {
+        if (empty($unitIds)) {
+            return;
+        }
+
+        \App\Models\JobRecord::whereIn('elevator_unit_id', $unitIds)
+            ->whereNull('check_in_time')
+            ->whereNotIn('status', ['in_progress', 'on_hold', 'completed'])
+            ->delete();
+
+        \App\Models\ElevatorUnit::whereIn('id', $unitIds)->delete();
+    }
+
+    private function deleteContract(Contract $contract): void
+    {
+        if ($contract->contract_document) {
+            Storage::disk('public')->delete($contract->contract_document);
+        }
+
+        // units and jobs cascade at database level
+        $contract->delete();
     }
 
     public function importElevatorUnits(Request $request, Contract $contract)
@@ -517,7 +734,9 @@ class ContractController extends Controller
             'status'               => ['sometimes', 'string', Rule::in(['active', 'expired', 'cancelled'])],
 
             'elevators'                          => ['nullable', 'array'],
+            'elevators.*.id'                     => ['nullable', 'integer'],
             'elevators.*.identification_no'      => ['required_with:elevators', 'string', 'max:100'],
+            'elevators.*.unit_number'            => ['nullable', 'string', 'max:50'],
             'elevators.*.speed'                  => ['nullable', 'string', 'max:50'],
             'elevators.*.capacity'               => ['nullable', 'string', 'max:50'],
             'elevators.*.unit_type'              => ['nullable', Rule::in(['Elevator', 'Escalator', 'Dumbwaiter'])],

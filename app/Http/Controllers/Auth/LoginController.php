@@ -5,9 +5,13 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 class LoginController extends Controller
 {
+    private const MAX_ATTEMPTS = 5;
+
     // Handle login request
     public function login(Request $request)
     {
@@ -16,7 +20,19 @@ class LoginController extends Controller
             'password' => 'required',
         ]);
 
+        // Lock out after repeated failures for the same email + IP
+        $throttleKey = Str::transliterate(Str::lower($request->input('email')) . '|' . $request->ip());
+
+        if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_ATTEMPTS)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            return back()->withInput($request->only('email'))->withErrors([
+                'email' => "Too many login attempts. Please try again in {$seconds} seconds.",
+            ]);
+        }
+
         if (Auth::attempt($credentials, $request->filled('remember'))) {
+            RateLimiter::clear($throttleKey);
             $request->session()->regenerate();
 
             $user = Auth::user();
@@ -29,7 +45,9 @@ class LoginController extends Controller
             return redirect()->intended(route('dashboard'));
         }
 
-        return back()->withErrors([
+        RateLimiter::hit($throttleKey);
+
+        return back()->withInput($request->only('email'))->withErrors([
             'email' => 'The provided credentials do not match our records.',
         ]);
     }

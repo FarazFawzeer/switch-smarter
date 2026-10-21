@@ -95,6 +95,14 @@
                     <div>
                         <div class="fw-bold fs-20">{{ $summary->total ?? 0 }}</div>
                         <div class="small text-muted">Total PPMs</div>
+                        @if (!is_null($summary->not_scheduled))
+                            <div class="text-muted" style="font-size:11px;"
+                                title="Units in the master list (active contracts) vs. units with a visit this month">
+                                {{ $summary->scheduled ?? 0 }} scheduled · {{ $summary->not_scheduled }} not scheduled
+                            </div>
+                        @else
+                            <div class="text-muted" style="font-size:11px;">units assigned this month</div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -279,7 +287,12 @@
                                 <div class="text-muted" style="font-size:12px;">{{ optional($job->contract)->location }}
                                 </div>
                             </td>
-                            <td class="fw-semibold">{{ optional($job->unit)->identification_no ?? '—' }}</td>
+                            <td class="fw-semibold">
+                                {{ optional($job->unit)->identification_no ?? '—' }}
+                                @if (optional($job->unit)->unit_number)
+                                    <span class="text-muted fw-normal">({{ $job->unit->unit_number }})</span>
+                                @endif
+                            </td>
                             <td>{{ optional(optional($job->contract)->route)->route_no ?? '—' }}</td>
                             <td>{{ optional(optional($job->contract)->engineer)->name ?? '—' }}</td>
                             <td>{{ optional($job->technician)->name ?? 'Unassigned' }}</td>

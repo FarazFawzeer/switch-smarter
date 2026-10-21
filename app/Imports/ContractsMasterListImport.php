@@ -87,6 +87,7 @@ class ContractsMasterListImport implements ToCollection, WithHeadingRow
 
             $groups[$key]['units'][] = [
                 'identification_no' => $unitId,
+                'unit_number'       => trim((string) ($row['unit_number'] ?? '')) ?: null,
                 'unit_type'         => $this->normalizeChoice((string) ($row['unit_type'] ?? ''), ['Elevator', 'Escalator', 'Dumbwaiter'], 'Elevator'),
                 'elevator_type'     => $this->normalizeChoice((string) ($row['elevator_type'] ?? ''), ['Passenger', 'Service', 'Freight']),
                 'speed'             => trim((string) ($row['speed'] ?? '')) ?: null,

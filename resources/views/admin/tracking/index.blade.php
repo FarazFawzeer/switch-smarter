@@ -214,7 +214,7 @@
     @else
         <div class="alert alert-light border small mb-3">
             <iconify-icon icon="solar:info-circle-outline"></iconify-icon>
-            Select a technician above to see their daily working-hours chart (Normal Time / Overtime / Days Off).
+            Select a technician above to see their daily working-hours chart (HOT / Normal Time / Overtime).
         </div>
     @endif
 
@@ -229,6 +229,7 @@
                         <th>Project / Unit</th>
                         <th>Date Commenced</th>
                         <th>Check-in</th>
+                        <th>Check-in Location</th>
                         <th>Check-out</th>
                         <th>Work Shift</th>
                         <th>Work Type</th>
@@ -245,9 +246,7 @@
                     @forelse($jobs as $job)
                         @php
                             $attendance = $job->attendance;
-                            $normalHours = $attendance
-                                ? max(0, ($attendance->total_hours ?? 0) - ($attendance->ot_hours ?? 0))
-                                : null;
+                            $hours = $job->hours; // this job only — normal / OT split at shift end
                             $workTypeColorMap = [
                                 'ppm' => '#2E9E5B',
                                 'breakdown' => '#D64545',
@@ -278,18 +277,20 @@
                                     {{ optional($job->contract)->project_name ?? '—' }}
                                 </a>
                                 <div class="text-muted" style="font-size:11px;">
-                                    {{ optional($job->unit)->identification_no ?? '—' }}</div>
+                                    {{ optional($job->unit)->identification_no ?? '—' }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }}</div>
                             </td>
                             <td>{{ $job->check_in_time->format('d M Y') }}</td>
+                            <td>{{ $job->check_in_time->format('h:i A') }}</td>
                             <td>
-                                {{ $job->check_in_time->format('h:i A') }}
                                 @if ($job->check_in_lat && $job->check_in_lng)
-                                    <br><a
-                                        href="https://www.google.com/maps?q={{ $job->check_in_lat }},{{ $job->check_in_lng }}"
+                                    <a href="https://www.google.com/maps?q={{ $job->check_in_lat }},{{ $job->check_in_lng }}"
                                         target="_blank" class="ts-location-link">
                                         <iconify-icon icon="solar:map-point-outline"
-                                            style="font-size:12px;"></iconify-icon> View
+                                            style="font-size:12px;"></iconify-icon>
+                                        {{ number_format((float) $job->check_in_lat, 5) }}, {{ number_format((float) $job->check_in_lng, 5) }}
                                     </a>
+                                @else
+                                    <span class="text-muted">—</span>
                                 @endif
                             </td>
                             <td>
@@ -304,13 +305,15 @@
                                 <span class="ts-pill"
                                     style="background:{{ $workTypeColor }};">{{ $workTypeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}</span>
                             </td>
-                            <td>{{ $normalHours !== null ? number_format($normalHours, 2) . 'h' : '—' }}</td>
+                            <td>{{ $hours ? number_format($hours['normal'], 2) . 'h' : '—' }}</td>
                             <td>
-                                @if ($attendance && $attendance->ot_hours > 0)
+                                @if ($hours && $hours['ot'] > 0)
                                     <span class="ts-pill"
-                                        style="background:#D64545;">{{ number_format($attendance->ot_hours, 2) }}h</span>
-                                @else
+                                        style="background:#D64545;">{{ number_format($hours['ot'], 2) }}h</span>
+                                @elseif ($hours)
                                     <span class="text-muted">0h</span>
+                                @else
+                                    <span class="text-muted">—</span>
                                 @endif
                             </td>
                             <td>
@@ -349,7 +352,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="14" class="text-center text-muted py-5">
+                            <td colspan="16" class="text-center text-muted py-5">
                                 <iconify-icon icon="solar:clock-circle-outline"
                                     style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                                 <p class="mb-0 mt-2">No timesheet activity found for these filters.</p>
@@ -400,7 +403,7 @@
                         stacked: false
                     },
                     series: [{
-                            name: 'HOT (Day Off)',
+                            name: 'HOT (Total Hours)',
                             data: hot
                         },
                         {
@@ -439,7 +442,8 @@
                         title: {
                             text: 'Hours'
                         },
-                        max: 10,
+                        min: 0,
+                        forceNiceScale: true,
                     },
                     legend: {
                         position: 'bottom'

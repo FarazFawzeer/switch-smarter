@@ -18,7 +18,7 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <span class="badge mb-1" style="background:{{ $typeColor }}1A; color:{{ $typeColor }}; font-weight:700;">{{ $typeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}</span>
-                        <p class="mb-1 fw-bold text-dark">{{ optional($job->unit)->identification_no ?? 'Unassigned unit' }}</p>
+                        <p class="mb-1 fw-bold text-dark">{{ optional($job->unit)->identification_no ?? 'Unassigned unit' }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }}</p>
                         <p class="mb-1 small text-muted">{{ optional($job->contract)->project_name ?? 'Unknown project' }}</p>
                         <p class="mb-0 small text-muted">
                             <iconify-icon icon="solar:calendar-outline" style="font-size:13px;"></iconify-icon>

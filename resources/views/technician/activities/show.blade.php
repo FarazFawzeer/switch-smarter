@@ -76,14 +76,14 @@
                 </div>
                 <div class="col-6">
                     <p class="act-field-label mb-0">Unit ID</p>
-                    <p class="act-info-value mb-0">{{ optional($job->unit)->identification_no ?? '—' }}</p>
+                    <p class="act-info-value mb-0">{{ optional($job->unit)->identification_no ?? '—' }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }}</p>
                 </div>
             </div>
         @else
             <div class="row mb-2">
                 <div class="col-6">
                     <p class="act-field-label mb-0">Unit ID</p>
-                    <p class="act-info-value mb-0">{{ optional($job->unit)->identification_no ?? '—' }}</p>
+                    <p class="act-info-value mb-0">{{ optional($job->unit)->identification_no ?? '—' }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }}</p>
                 </div>
                 <div class="col-6">
                     <p class="act-field-label mb-0">Asset / Unit</p>

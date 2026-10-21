@@ -13,7 +13,7 @@
             <div class="row mb-2">
                 <div class="col-6">
                     <p class="text-muted small mb-0">Unit</p>
-                    <p class="fw-semibold mb-0">{{ optional($job->unit)->identification_no ?? '—' }}</p>
+                    <p class="fw-semibold mb-0">{{ optional($job->unit)->identification_no ?? '—' }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }}</p>
                 </div>
                 <div class="col-6">
                     <p class="text-muted small mb-0">Scheduled Date</p>

@@ -199,11 +199,15 @@
         <div class="border rounded p-3 mb-3 elevator-unit-block">
             <h6 class="mb-3 text-primary unit-index-label">Unit __INDEX_DISPLAY__</h6>
             <div class="row">
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Elevator Identification No</label>
                     <input type="text" name="elevators[__INDEX__][identification_no]" class="form-control" placeholder="Ex: LP-A-01" required>
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Unit Number</label>
+                    <input type="text" name="elevators[__INDEX__][unit_number]" class="form-control" placeholder="Ex: L1, L2, SL3">
+                </div>
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Unit Type</label>
                     <select name="elevators[__INDEX__][unit_type]" class="form-select" required>
                         <option value="Elevator" selected>Elevator</option>
@@ -211,7 +215,7 @@
                         <option value="Dumbwaiter">Dumbwaiter</option>
                     </select>
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Elevator Type</label>
                     <select name="elevators[__INDEX__][elevator_type]" class="form-select">
                         <option value="">Select type</option>

@@ -39,6 +39,12 @@
     .th-schedule-item .sub { font-size: 12px; color: #8792a2; }
     .th-schedule-item .time { font-size: 12px; color: #8792a2; margin-left: auto; white-space: nowrap; font-weight: 600; }
 
+    .th-status { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 10px; font-size: 10.5px; font-weight: 700; vertical-align: middle; }
+    .th-status-ongoing { background: rgba(46,134,222,0.12); color: #2E86DE; }
+    .th-status-done { background: rgba(46,158,91,0.12); color: #2E9E5B; }
+    .th-status-hold { background: rgba(135,146,162,0.15); color: #56606f; }
+    .th-status-todo { background: rgba(240,162,2,0.12); color: #B57900; }
+
     /* Compact floating action button — bottom right, above the bottom nav */
     .th-fab {
         position: fixed; bottom: 82px; right: 20px; z-index: 999;
@@ -101,15 +107,39 @@
     @endphp
 
     @forelse($todaysSchedule as $job)
+        @php
+            // Work status shown next to the unit: Ongoing once started, Completed when done
+            [$statusLabel, $statusClass] = match ($job->status) {
+                'completed'   => ['Completed', 'done'],
+                'in_progress' => ['Ongoing', 'ongoing'],
+                'on_hold'     => ['On Hold', 'hold'],
+                default       => ['Not Started', 'todo'],
+            };
+        @endphp
         <a href="{{ route('technician.activities.show', $job->id) }}" class="th-schedule-item">
             <div class="th-schedule-icon" style="background:{{ $typeColorMap[$job->job_type] ?? '#8792a2' }};">
                 <iconify-icon icon="{{ $typeIconMap[$job->job_type] ?? 'solar:clipboard-list-outline' }}"></iconify-icon>
             </div>
             <div>
-                <div class="title">{{ optional($job->unit)->identification_no ?? '—' }}</div>
-                <div class="sub">{{ $typeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}</div>
+                <div class="title">
+                    {{ optional($job->unit)->identification_no ?? '—' }}
+                    @if(optional($job->unit)->unit_number)
+                        <span class="text-muted fw-normal" style="font-size:12px;">({{ $job->unit->unit_number }})</span>
+                    @endif
+                    <span class="th-status th-status-{{ $statusClass }}">{{ $statusLabel }}</span>
+                </div>
+                <div class="sub">
+                    {{ $typeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}
+                    @if(optional($job->contract)->project_name) · {{ $job->contract->project_name }} @endif
+                </div>
             </div>
-            <div class="time">{{ $job->scheduled_date->format('h:i A') }}</div>
+            <div class="time">
+                @if($job->check_out_time)
+                    {{ $job->check_out_time->format('h:i A') }}
+                @elseif($job->check_in_time)
+                    {{ $job->check_in_time->format('h:i A') }}
+                @endif
+            </div>
         </a>
     @empty
         <p class="text-center text-muted small py-3 mb-0">Nothing scheduled for today.</p>

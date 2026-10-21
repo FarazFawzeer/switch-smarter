@@ -15,7 +15,7 @@
                 <div class="card mb-2" style="border-left: 4px solid {{ $typeColorMap[$job->job_type] ?? '#8792a2' }};">
                     <div class="card-body py-3 d-flex justify-content-between align-items-center">
                         <div>
-                            <p class="mb-1 fw-bold text-dark">{{ optional($job->unit)->identification_no ?? '—' }}</p>
+                            <p class="mb-1 fw-bold text-dark">{{ optional($job->unit)->identification_no ?? '—' }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }}</p>
                             <p class="mb-0 small text-muted">{{ $typeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }} · {{ optional($job->contract)->project_name ?? '' }}</p>
                         </div>
                         <span class="small text-muted">{{ $job->scheduled_date->format('h:i A') }}</span>

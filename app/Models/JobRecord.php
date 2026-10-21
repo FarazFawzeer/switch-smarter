@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 class JobRecord extends Model
 {
@@ -15,6 +18,7 @@ class JobRecord extends Model
         'elevator_unit_id',
         'job_type',
         'job_code',
+        'schedule_batch',
         'scheduled_date',
         'assigned_technician_id',
         'assigned_by',
@@ -90,6 +94,61 @@ class JobRecord extends Model
     public function reportedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reported_by');
+    }
+
+    public function reschedules(): HasMany
+    {
+        return $this->hasMany(JobReschedule::class, 'job_record_id')->latest('id');
+    }
+
+    /**
+     * Excludes PPM visits whose elevator unit no longer exists (unit_id was nulled
+     * when the unit was deleted). They belong to no unit and only inflate counts.
+     */
+    public function scopeWithoutOrphanPpm(Builder $query): Builder
+    {
+        return $query->where(function ($q) {
+            $q->where('job_type', '!=', 'ppm')->orWhereNotNull('elevator_unit_id');
+        });
+    }
+
+    public function hasStarted(): bool
+    {
+        return $this->check_in_time !== null || in_array($this->status, ['in_progress', 'on_hold', 'completed'], true);
+    }
+
+    /**
+     * Splits this job's worked time into normal and overtime hours, using the
+     * technician's shift end as the cut-off. Returns null while the job is still open.
+     *
+     * @return array{total: float, normal: float, ot: float}|null
+     */
+    public function workedHours(?Shift $shift): ?array
+    {
+        if (! $this->check_in_time || ! $this->check_out_time) {
+            return null;
+        }
+
+        $start = $this->check_in_time;
+        $end = $this->check_out_time;
+        $totalMinutes = max(0, $start->diffInMinutes($end));
+
+        $otMinutes = 0;
+        if ($shift) {
+            $shiftEnd = Carbon::parse($start->toDateString() . ' ' . $shift->end_time);
+            if ($shift->end_time < $shift->start_time) {
+                $shiftEnd->addDay();
+            }
+            if ($end->gt($shiftEnd)) {
+                $otMinutes = $shiftEnd->gt($start) ? $shiftEnd->diffInMinutes($end) : $totalMinutes;
+            }
+        }
+
+        return [
+            'total'  => round($totalMinutes / 60, 2),
+            'normal' => round(($totalMinutes - $otMinutes) / 60, 2),
+            'ot'     => round($otMinutes / 60, 2),
+        ];
     }
 
     public static function generateJobCode(string $type): string

@@ -22,6 +22,7 @@ class ContractsMasterListTemplateExport implements FromArray, WithHeadings, With
             'Route No',
             'Engineer Name',
             'Unit ID',
+            'Unit Number',
             'Unit Type',
             'Elevator Type',
             'Speed',
@@ -42,15 +43,15 @@ class ContractsMasterListTemplateExport implements FromArray, WithHeadings, With
         return [
             [
                 'Liberty Plaza', 'Commercial', 'Colombo 03', '2026-01-01', '2027-01-01',
-                'RT-01', 'John Perera', 'LP-A-01', 'Elevator', 'Passenger', '1.5 m/s', '1000kg / 13 persons', 'KONE', 'MonoSpace 500',
+                'RT-01', 'John Perera', 'LP-A-01', 'L1', 'Elevator', 'Passenger', '1.5 m/s', '1000kg / 13 persons', 'KONE', 'MonoSpace 500',
             ],
             [
                 'Liberty Plaza', 'Commercial', 'Colombo 03', '2026-01-01', '2027-01-01',
-                'RT-01', 'John Perera', 'LP-A-02', 'Elevator', 'Passenger', '1.5 m/s', '1000kg / 13 persons', 'KONE', 'MonoSpace 500',
+                'RT-01', 'John Perera', 'LP-A-02', 'L2', 'Elevator', 'Passenger', '1.5 m/s', '1000kg / 13 persons', 'KONE', 'MonoSpace 500',
             ],
             [
                 'City Tower', 'Residential', 'Colombo 05', '2026-02-01', '2027-02-01',
-                'RT-02', 'Nimal Fernando', 'CT-B-01', 'Escalator', 'Passenger', '0.5 m/s', '', 'Otis', 'Gen2',
+                'RT-02', 'Nimal Fernando', 'CT-B-01', 'SL3', 'Escalator', 'Passenger', '0.5 m/s', '', 'Otis', 'Gen2',
             ],
         ];
     }
@@ -72,8 +73,8 @@ class ContractsMasterListTemplateExport implements FromArray, WithHeadings, With
     {
         return [
             'A' => 22, 'B' => 16, 'C' => 18, 'D' => 18, 'E' => 18,
-            'F' => 12, 'G' => 20, 'H' => 14, 'I' => 14, 'J' => 14,
-            'K' => 14, 'L' => 18, 'M' => 14, 'N' => 16,
+            'F' => 12, 'G' => 20, 'H' => 14, 'I' => 13, 'J' => 14,
+            'K' => 14, 'L' => 14, 'M' => 18, 'N' => 14, 'O' => 16,
         ];
     }
 }

@@ -129,11 +129,14 @@
                             <div class="border rounded p-2" style="max-height: 340px; overflow-y: auto;">
                                 @foreach ($units as $unit)
                                     <div class="form-check unit-checkbox-row"
-                                        data-unit-search="{{ strtolower($unit->identification_no) }}">
+                                        data-unit-search="{{ strtolower($unit->identification_no . ' ' . $unit->unit_number) }}">
                                         <input class="form-check-input unit-checkbox" type="checkbox" name="unit_ids[]"
                                             value="{{ $unit->id }}" id="unit-{{ $unit->id }}" checked>
                                         <label class="form-check-label" for="unit-{{ $unit->id }}">
                                             <strong>{{ $unit->identification_no }}</strong>
+                                            @if ($unit->unit_number)
+                                                <span class="badge bg-light text-dark border">{{ $unit->unit_number }}</span>
+                                            @endif
                                             <span class="text-muted"> —
                                                 {{ $unit->unit_type }}{{ $unit->brand ? ' · ' . $unit->brand : '' }}</span>
                                         </label>

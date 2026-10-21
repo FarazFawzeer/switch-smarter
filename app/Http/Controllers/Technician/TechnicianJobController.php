@@ -35,6 +35,7 @@ class TechnicianJobController extends Controller
         $technicianId = Auth::id();
 
         $thisMonthJobs = JobRecord::where('assigned_technician_id', $technicianId)
+            ->withoutOrphanPpm()
             ->whereBetween('scheduled_date', [now()->startOfMonth(), now()->endOfMonth()])
             ->get();
 
@@ -43,11 +44,16 @@ class TechnicianJobController extends Controller
         $completedCount = $thisMonthJobs->where('status', 'completed')->count();
         $onHoldCount = $thisMonthJobs->where('status', 'on_hold')->count();
 
-        $todaysSchedule = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no'])
+        $todaysSchedule = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no,unit_number'])
             ->where('assigned_technician_id', $technicianId)
+            ->withoutOrphanPpm()
             ->whereDate('scheduled_date', now()->toDateString())
-            ->orderBy('scheduled_date')
-            ->get();
+            ->orderByRaw("FIELD(status, 'in_progress', 'on_hold', 'pending', 'completed')")
+            ->orderBy('id')
+            ->get()
+            // one entry per unit + job type, even if old data still holds a duplicate visit
+            ->unique(fn ($job) => ($job->elevator_unit_id ?? 'job' . $job->id) . '|' . $job->job_type)
+            ->values();
 
         $todayAttendance = TechnicianAttendance::where('technician_id', $technicianId)
             ->where('work_date', now()->toDateString())
@@ -62,8 +68,9 @@ class TechnicianJobController extends Controller
     {
         $technicianId = Auth::id();
 
-        $query = JobRecord::with(['contract:id,project_name,location', 'unit:id,identification_no,unit_type'])
+        $query = JobRecord::with(['contract:id,project_name,location', 'unit:id,identification_no,unit_number,unit_type'])
             ->where('assigned_technician_id', $technicianId)
+            ->withoutOrphanPpm()
             ->whereBetween('scheduled_date', [now()->startOfMonth(), now()->endOfMonth()]);
 
         if ($request->filled('unit_search')) {
@@ -93,10 +100,13 @@ class TechnicianJobController extends Controller
         $jobs = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no,unit_type'])
             ->where('assigned_technician_id', $technicianId)
             ->whereBetween('scheduled_date', [now()->startOfMonth(), now()->endOfMonth()])
-            ->whereHas('unit', fn ($q) => $q->where('identification_no', 'like', "%{$search}%"))
+            ->whereHas('unit', fn ($q) => $this->matchUnitSearch($q, $search))
             ->orderBy('scheduled_date')
-            ->limit(10)
-            ->get();
+            ->limit(30)
+            ->get()
+            ->unique(fn ($job) => $job->elevator_unit_id . '|' . $job->job_type)
+            ->take(10)
+            ->values();
 
         $results = $jobs->map(fn ($job) => [
             'id'      => $job->id,
@@ -130,25 +140,27 @@ class TechnicianJobController extends Controller
             return response()->json(['results' => []]);
         }
 
-        if ($type === 'ppm' || $type === 'casual_job') {
-            $jobs = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no'])
+        if ($type === 'ppm') {
+            $results = $this->ppmSearchResults($technicianId, $search);
+        } elseif ($type === 'casual_job') {
+            $jobs = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no,unit_number'])
                 ->where('assigned_technician_id', $technicianId)
                 ->where('job_type', $type)
                 ->whereIn('status', ['pending', 'in_progress', 'on_hold'])
-                ->whereHas('unit', fn ($q) => $q->where('identification_no', 'like', "%{$search}%"))
+                ->whereHas('unit', fn ($q) => $this->matchUnitSearch($q, $search))
                 ->limit(10)
                 ->get();
 
             $results = $jobs->map(fn ($job) => [
                 'mode'    => 'existing',
                 'job_id'  => $job->id,
-                'unit_id' => optional($job->unit)->identification_no ?? '—',
+                'unit_id' => $this->unitLabel($job->unit),
                 'project' => optional($job->contract)->project_name ?? '—',
                 'url'     => route('technician.activities.show', $job->id),
             ]);
         } else {
             $units = ElevatorUnit::with('contract:id,project_name,location')
-                ->where('identification_no', 'like', "%{$search}%")
+                ->where(fn ($q) => $this->matchUnitSearch($q, $search))
                 ->whereHas('contract', fn ($q) => $q->where('status', 'active'))
                 ->limit(10)
                 ->get();
@@ -156,7 +168,7 @@ class TechnicianJobController extends Controller
             $results = $units->map(fn ($unit) => [
                 'mode'        => 'new',
                 'unit_id_pk'  => $unit->id,
-                'unit_id'     => $unit->identification_no,
+                'unit_id'     => $this->unitLabel($unit),
                 'project'     => optional($unit->contract)->project_name ?? '—',
                 'contract_id' => $unit->contract_id,
             ]);
@@ -167,7 +179,7 @@ class TechnicianJobController extends Controller
 
     public function activityCreate(Request $request, string $type)
     {
-        abort_unless(in_array($type, ['repair', 'breakdown', 'casual_job']), 404);
+        abort_unless(in_array($type, ['ppm', 'repair', 'breakdown', 'casual_job']), 404);
 
         $validator = Validator::make($request->all(), [
             'elevator_unit_id' => ['required', 'exists:elevator_units,id'],
@@ -178,6 +190,22 @@ class TechnicianJobController extends Controller
         }
 
         $unit = ElevatorUnit::findOrFail($request->input('elevator_unit_id'));
+
+        // A PPM can only be started on a unit with no PPM visit this month yet;
+        // otherwise the technician opens the existing visit instead of duplicating it.
+        if ($type === 'ppm') {
+            $alreadyThisMonth = JobRecord::where('elevator_unit_id', $unit->id)
+                ->where('job_type', 'ppm')
+                ->whereBetween('scheduled_date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
+                ->exists();
+
+            if ($alreadyThisMonth) {
+                return response()->json([
+                    'success' => false,
+                    'errors'  => ['elevator_unit_id' => ['This unit already has a PPM visit this month.']],
+                ], 422);
+            }
+        }
 
         $job = JobRecord::create([
             'contract_id'            => $unit->contract_id,
@@ -255,6 +283,14 @@ class TechnicianJobController extends Controller
     {
         abort_unless($job->assigned_technician_id === Auth::id(), 403);
 
+        if (! $job->check_in_time) {
+            return response()->json(['success' => false, 'errors' => ['general' => ['You must start this activity before saving a draft.']]], 422);
+        }
+
+        if ($job->check_out_time || $job->status === 'completed') {
+            return response()->json(['success' => false, 'errors' => ['general' => ['This activity is already completed and can no longer be edited.']]], 422);
+        }
+
         $job->update($this->extractActivityFields($request, $job->job_type) + ['status' => 'on_hold']);
 
         return response()->json(['success' => true, 'message' => 'Saved as draft. You can complete this later.']);
@@ -279,7 +315,7 @@ class TechnicianJobController extends Controller
 
         $rules = array_merge($this->activityValidationRules($job->job_type), [
             'completion_photo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'signature'        => ['required', 'string'],
+            'signature'        => ['required', 'string', 'regex:#^data:image/png;base64,[A-Za-z0-9+/=]+$#', 'max:2000000'],
             'latitude'         => ['required', 'numeric', 'between:-90,90'],
             'longitude'        => ['required', 'numeric', 'between:-180,180'],
         ]);
@@ -310,13 +346,19 @@ class TechnicianJobController extends Controller
             }
         }
 
+        $signatureBytes = $this->decodePngSignature($request->input('signature'));
+
+        if ($signatureBytes === null) {
+            return response()->json(['success' => false, 'errors' => ['signature' => ['The signature is not a valid image. Please sign again.']]], 422);
+        }
+
         $now = now();
 
         $file = $request->file('completion_photo');
         $photoFilename = time() . '_' . Str::random(6) . '.' . $file->getClientOriginalExtension();
         $file->storeAs('job-completions', $photoFilename, 'public');
 
-        $signaturePath = $this->saveSignature($request->input('signature'));
+        $signaturePath = $this->saveSignature($signatureBytes);
 
         $data = $this->extractActivityFields($request, $job->job_type) + [
             'check_out_time'   => $now,
@@ -354,6 +396,79 @@ class TechnicianJobController extends Controller
     }
 
     // ================= Helpers =================
+
+    /**
+     * PPM unit search for the technician app:
+     *  - ONE result per unit: this month's visit (or the latest overdue one). Future
+     *    monthly visits are not listed, so a unit no longer shows up several times.
+     *  - plus units with no PPM visit this month at all ("Not scheduled"), so the
+     *    technician can still start a PPM on them.
+     */
+    private function ppmSearchResults(int $technicianId, string $search)
+    {
+        $monthStart = now()->startOfMonth()->toDateString();
+        $monthEnd = now()->endOfMonth()->toDateString();
+
+        $existing = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no,unit_number'])
+            ->where('assigned_technician_id', $technicianId)
+            ->where('job_type', 'ppm')
+            ->whereNotNull('elevator_unit_id')
+            ->whereIn('status', ['pending', 'overdue', 'in_progress', 'on_hold'])
+            ->where('scheduled_date', '<=', $monthEnd)
+            ->whereHas('unit', fn ($q) => $this->matchUnitSearch($q, $search))
+            ->orderByDesc('scheduled_date')
+            ->limit(50)
+            ->get()
+            ->unique('elevator_unit_id')
+            ->take(10)
+            ->values();
+
+        $results = $existing->map(fn ($job) => [
+            'mode'    => 'existing',
+            'job_id'  => $job->id,
+            'unit_id' => $this->unitLabel($job->unit),
+            'project' => optional($job->contract)->project_name ?? '—',
+            'note'    => $job->scheduled_date->lt(now()->startOfMonth())
+                ? 'Overdue — scheduled ' . $job->scheduled_date->format('d M')
+                : 'Scheduled ' . $job->scheduled_date->format('d M'),
+            'url'     => route('technician.activities.show', $job->id),
+        ]);
+
+        $unscheduled = ElevatorUnit::with('contract:id,project_name')
+            ->where(fn ($q) => $this->matchUnitSearch($q, $search))
+            ->whereNotIn('id', $existing->pluck('elevator_unit_id'))
+            ->whereHas('contract', fn ($q) => $q->where('status', 'active'))
+            ->whereDoesntHave('ppmJobs', fn ($q) => $q->whereBetween('scheduled_date', [$monthStart, $monthEnd]))
+            ->orderBy('identification_no')
+            ->limit(10)
+            ->get();
+
+        return $results->concat($unscheduled->map(fn ($unit) => [
+            'mode'        => 'new',
+            'unit_id_pk'  => $unit->id,
+            'unit_id'     => $this->unitLabel($unit),
+            'project'     => optional($unit->contract)->project_name ?? '—',
+            'note'        => 'Not scheduled this month — tap to start a PPM',
+            'contract_id' => $unit->contract_id,
+        ]))->values();
+    }
+
+    private function matchUnitSearch($query, string $search)
+    {
+        return $query->where(function ($q) use ($search) {
+            $q->where('identification_no', 'like', "%{$search}%")
+                ->orWhere('unit_number', 'like', "%{$search}%");
+        });
+    }
+
+    private function unitLabel(?ElevatorUnit $unit): string
+    {
+        if (! $unit) {
+            return '—';
+        }
+
+        return $unit->identification_no . ($unit->unit_number ? ' (' . $unit->unit_number . ')' : '');
+    }
 
     private function activityValidationRules(string $type): array
     {
@@ -406,17 +521,27 @@ class TechnicianJobController extends Controller
         return $fields;
     }
 
-    private function saveSignature(?string $base64): ?string
+    /**
+     * Decode a canvas data URL and confirm the bytes really are a PNG image.
+     * Returns null for anything else, so arbitrary content (e.g. HTML) is never stored.
+     */
+    private function decodePngSignature(string $dataUrl): ?string
     {
-        if (! $base64) {
+        $data = base64_decode(preg_replace('#^data:image/png;base64,#', '', $dataUrl), true);
+
+        if ($data === false || $data === '') {
             return null;
         }
 
-        $data = preg_replace('#^data:image/\w+;base64,#i', '', $base64);
-        $data = base64_decode($data);
+        $info = @getimagesizefromstring($data);
 
+        return ($info && $info[2] === IMAGETYPE_PNG) ? $data : null;
+    }
+
+    private function saveSignature(string $pngBytes): string
+    {
         $filename = 'signatures/' . time() . '_' . Str::random(6) . '.png';
-        \Storage::disk('public')->put($filename, $data);
+        \Storage::disk('public')->put($filename, $pngBytes);
 
         return $filename;
     }
@@ -480,8 +605,9 @@ class TechnicianJobController extends Controller
     {
         $technicianId = Auth::id();
 
-        $jobs = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no'])
+        $jobs = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no,unit_number'])
             ->where('assigned_technician_id', $technicianId)
+            ->withoutOrphanPpm()
             ->whereBetween('scheduled_date', [now()->startOfMonth(), now()->endOfMonth()])
             ->orderBy('scheduled_date')
             ->get()
