@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Holiday;
 use App\Models\JobRecord;
 use App\Models\TechnicianAttendance;
 use App\Models\User;
@@ -319,6 +320,9 @@ class TimesheetApprovalController extends Controller
             ->groupBy(fn ($job) => $job->assigned_technician_id . '|' . $job->check_in_time->toDateString());
 
         $records->each(function ($record) use ($jobs) {
+            // Weekly day off / public holiday → the whole day is HOT, not Normal/OT
+            $record->holiday = Holiday::reasonFor($record->work_date);
+
             $dayJobs = $jobs->get($record->technician_id . '|' . $record->work_date->toDateString(), collect());
 
             $record->day_jobs = $dayJobs->map(function ($job) {

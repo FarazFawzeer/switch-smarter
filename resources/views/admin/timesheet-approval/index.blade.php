@@ -36,6 +36,8 @@
         .ap-status-rejected { background: #D64545; }
 
         .ap-ot-pill { background: rgba(214,69,69,0.10); color: #D64545; font-weight: 700; font-size: 11px; padding: 3px 10px; border-radius: 6px; }
+        .ap-hot-pill { background: rgba(23,162,184,0.12); color: #138496; font-weight: 700; font-size: 11px; padding: 3px 10px; border-radius: 6px; white-space: nowrap; }
+        .ap-holiday-note { font-size: 10.5px; color: #138496; font-weight: 600; }
         .ap-employee-cell { display: flex; align-items: center; gap: 10px; }
         .ap-employee-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
         .ap-employee-toggle { cursor: pointer; }
@@ -178,7 +180,7 @@
                         <th>Check-in</th>
                         <th>Check-out</th>
                         <th>Hours</th>
-                        <th>OT</th>
+                        <th>OT / HOT</th>
                         <th>Status</th>
                         <th class="text-center">Action</th>
                     </tr>
@@ -230,12 +232,20 @@
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td class="fw-semibold">{{ $record->work_date->format('d M Y') }}</td>
+                            <td class="fw-semibold">
+                                {{ $record->work_date->format('d M Y') }}
+                                @if($record->holiday)
+                                    <div class="ap-holiday-note">{{ $record->holiday }}</div>
+                                @endif
+                            </td>
                             <td>{{ $record->check_in_time?->format('h:i A') ?? '—' }}</td>
                             <td>{{ $record->check_out_time?->format('h:i A') ?? '—' }}</td>
                             <td class="fw-semibold">{{ $record->total_hours ?? '—' }}</td>
                             <td>
-                                @if($record->ot_hours > 0)
+                                @if($record->holiday && $record->total_hours > 0)
+                                    {{-- worked on a holiday: the whole day is HOT, no normal OT --}}
+                                    <span class="ap-hot-pill" title="{{ $record->holiday }}">HOT {{ $record->total_hours }}h</span>
+                                @elseif($record->ot_hours > 0)
                                     <span class="ap-ot-pill">+{{ $record->ot_hours }}</span>
                                 @else
                                     <span class="text-muted">—</span>
@@ -278,6 +288,7 @@
                                                 <th>End</th>
                                                 <th>Normal</th>
                                                 <th>OT</th>
+                                                <th>HOT</th>
                                                 <th>Status</th>
                                             </tr>
                                         </thead>
@@ -301,8 +312,9 @@
                                                         @endif
                                                     </td>
                                                     <td>{{ $dayJob->check_out_time?->format('h:i A') ?? 'Not finished' }}</td>
-                                                    <td>{{ $dayJob->hours ? number_format($dayJob->hours['normal'], 2) . 'h' : '—' }}</td>
+                                                    <td>{{ $dayJob->hours && ! $dayJob->hours['holiday'] ? number_format($dayJob->hours['normal'], 2) . 'h' : '—' }}</td>
                                                     <td>{{ $dayJob->hours && $dayJob->hours['ot'] > 0 ? number_format($dayJob->hours['ot'], 2) . 'h' : '—' }}</td>
+                                                    <td>{{ $dayJob->hours && $dayJob->hours['hot'] > 0 ? number_format($dayJob->hours['hot'], 2) . 'h' : '—' }}</td>
                                                     <td>{{ ucfirst(str_replace('_', ' ', $dayJob->status)) }}</td>
                                                 </tr>
                                             @endforeach

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Holiday;
 use App\Models\JobRecord;
 use App\Models\TechnicianAttendance;
 use App\Models\User;
@@ -42,9 +43,11 @@ class JobTrackingController extends Controller
     }
 
     /**
-     * Daily Normal Time / Overtime / HOT (total hours worked) for one technician,
-     * across the selected date range (defaults to the current month).
-     * A day without any work shows 0 for every series.
+     * Daily Normal Time / Overtime / HOT for one technician, across the selected
+     * date range (defaults to the current month):
+     *  - working day  → Normal Time (+ Over Time after shift end), no HOT
+     *  - holiday with work (weekly day off or listed public holiday) → HOT only
+     *  - no work      → nothing
      */
     private function buildWorkingHoursChart(int $technicianId, ?string $from, ?string $to): array
     {
@@ -62,6 +65,7 @@ class JobTrackingController extends Controller
         $normalTime = [];
         $overTime = [];
         $hot = [];
+        $holidays = [];
 
         $cursor = $rangeStart->copy();
         while ($cursor->lte($rangeEnd)) {
@@ -69,16 +73,21 @@ class JobTrackingController extends Controller
             $labels[] = $cursor->format('M j');
 
             $record = $attendanceByDate->get($dateKey);
-
             $worked = $record ? (float) ($record->total_hours ?? 0) : 0.0;
+            $holiday = Holiday::reasonFor($cursor);
+            $holidays[] = $holiday;
 
-            if ($worked > 0) {
+            if ($worked > 0 && $holiday) {
+                // worked on a holiday → all of it is HOT
+                $normalTime[] = 0;
+                $overTime[] = 0;
+                $hot[] = round($worked, 1);
+            } elseif ($worked > 0) {
                 $ot = (float) ($record->ot_hours ?? 0);
                 $normalTime[] = round(max(0, $worked - $ot), 1);
                 $overTime[] = round($ot, 1);
-                $hot[] = round($worked, 1);
+                $hot[] = 0;
             } else {
-                // No work this day — every series is 0 (previously HOT showed a full shift here)
                 $normalTime[] = 0;
                 $overTime[] = 0;
                 $hot[] = 0;
@@ -93,6 +102,7 @@ class JobTrackingController extends Controller
             'normal_time'     => $normalTime,
             'over_time'       => $overTime,
             'hot'             => $hot,
+            'holidays'        => $holidays,
         ];
     }
 
@@ -104,7 +114,7 @@ class JobTrackingController extends Controller
 
         $callback = function () use ($jobs) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['No', 'Technician', 'Project / Unit', 'Date Commenced', 'Check-in', 'Check-in Location', 'Check-out', 'Work Shift', 'Work Type', 'Normal Time', 'Overtime', 'Supervisor Approval', 'Engineer Approval', 'Manager Approval', 'Status']);
+            fputcsv($handle, ['No', 'Technician', 'Project / Unit', 'Date Commenced', 'Check-in', 'Check-in Location', 'Check-out', 'Work Shift', 'Work Type', 'Normal Time', 'Overtime', 'HOT (Holiday)', 'Holiday', 'Supervisor Approval', 'Engineer Approval', 'Manager Approval', 'Status']);
 
             foreach ($jobs as $index => $job) {
                 $attendance = $this->matchingAttendance($job);
@@ -122,6 +132,8 @@ class JobTrackingController extends Controller
                     $this->workTypeLabel($job->job_type),
                     $hours ? number_format($hours['normal'], 2) . 'h' : '—',
                     $hours ? number_format($hours['ot'], 2) . 'h' : '—',
+                    $hours ? number_format($hours['hot'], 2) . 'h' : '—',
+                    $hours['holiday'] ?? '',
                     $attendance?->supervisor_approved_at ? 'Approved' : 'Pending',
                     $attendance?->engineer_approved_at ? 'Approved' : 'Pending',
                     $attendance?->manager_approved_at ? 'Approved' : 'Pending',
@@ -216,9 +228,13 @@ class JobTrackingController extends Controller
 
         $attendanceRecords = $uniquePairs->map(fn($job) => $this->matchingAttendance($job))->filter();
 
+        // Holiday days count entirely as HOT; Regular/Overtime come from working days only
+        [$holidayDays, $workingDays] = $attendanceRecords->partition(fn($a) => Holiday::isHoliday($a->work_date));
+
         $totalHours = $attendanceRecords->sum('total_hours');
-        $overtimeHours = $attendanceRecords->sum('ot_hours');
-        $regularHours = max(0, $totalHours - $overtimeHours);
+        $hotHours = $holidayDays->sum('total_hours');
+        $overtimeHours = $workingDays->sum('ot_hours');
+        $regularHours = max(0, $workingDays->sum('total_hours') - $overtimeHours);
 
         $totalTechnicians = $jobs->pluck('assigned_technician_id')->unique()->filter()->count();
 
@@ -232,6 +248,7 @@ class JobTrackingController extends Controller
             'total_hours'       => $totalHours,
             'regular_hours'     => $regularHours,
             'overtime_hours'    => $overtimeHours,
+            'hot_hours'         => $hotHours,
             'compliance'        => $compliance,
         ];
     }

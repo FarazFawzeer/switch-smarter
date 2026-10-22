@@ -115,6 +115,11 @@
                     <div class="ts-stat-value" style="color:#D64545;">{{ number_format($summary['overtime_hours'], 1) }}h
                     </div>
                     <div class="ts-stat-label">Overtime</div>
+                    @if (round($summary['hot_hours'], 1) > 0)
+                        <div class="ts-stat-label" style="color:#17A2B8; font-weight:600;">
+                            + {{ number_format($summary['hot_hours'], 1) }}h HOT (holiday)
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -214,7 +219,7 @@
     @else
         <div class="alert alert-light border small mb-3">
             <iconify-icon icon="solar:info-circle-outline"></iconify-icon>
-            Select a technician above to see their daily working-hours chart (HOT / Normal Time / Overtime).
+            Select a technician above to see their daily working-hours chart (Normal Time / Overtime / HOT on holidays).
         </div>
     @endif
 
@@ -235,6 +240,7 @@
                         <th>Work Type</th>
                         <th>Normal Time</th>
                         <th>Overtime</th>
+                        <th>HOT</th>
                         <th>Supervisor</th>
                         <th>Engineer</th>
                         <th>Manager</th>
@@ -305,13 +311,22 @@
                                 <span class="ts-pill"
                                     style="background:{{ $workTypeColor }};">{{ $workTypeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}</span>
                             </td>
-                            <td>{{ $hours ? number_format($hours['normal'], 2) . 'h' : '—' }}</td>
+                            <td>{{ $hours && ! $hours['holiday'] ? number_format($hours['normal'], 2) . 'h' : '—' }}</td>
                             <td>
                                 @if ($hours && $hours['ot'] > 0)
                                     <span class="ts-pill"
                                         style="background:#D64545;">{{ number_format($hours['ot'], 2) }}h</span>
-                                @elseif ($hours)
+                                @elseif ($hours && ! $hours['holiday'])
                                     <span class="text-muted">0h</span>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if ($hours && $hours['hot'] > 0)
+                                    <span class="ts-pill" style="background:#17A2B8;"
+                                        title="{{ $hours['holiday'] }}">{{ number_format($hours['hot'], 2) }}h</span>
+                                    <div class="text-muted" style="font-size:10px;">{{ $hours['holiday'] }}</div>
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
@@ -352,7 +367,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="16" class="text-center text-muted py-5">
+                            <td colspan="17" class="text-center text-muted py-5">
                                 <iconify-icon icon="solar:clock-circle-outline"
                                     style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                                 <p class="mb-0 mt-2">No timesheet activity found for these filters.</p>
@@ -392,21 +407,20 @@
                 const normalTime = @json($chartData['normal_time']);
                 const overTime = @json($chartData['over_time']);
                 const hot = @json($chartData['hot']);
+                const holidays = @json($chartData['holidays']);
 
+                // One bar per day: Normal (+ Over Time stacked on top) on working days,
+                // HOT only on a holiday the technician actually worked.
                 new ApexCharts(document.getElementById('workingHoursChart'), {
                     chart: {
                         type: 'bar',
                         height: 320,
+                        stacked: true,
                         toolbar: {
                             show: false
-                        },
-                        stacked: false
+                        }
                     },
                     series: [{
-                            name: 'HOT (Total Hours)',
-                            data: hot
-                        },
-                        {
                             name: 'Normal Time',
                             data: normalTime
                         },
@@ -414,8 +428,12 @@
                             name: 'Over Time',
                             data: overTime
                         },
+                        {
+                            name: 'HOT (Holiday)',
+                            data: hot
+                        },
                     ],
-                    colors: ['#17A2B8', '#F0A202', '#9B59B6'],
+                    colors: ['#F0A202', '#9B59B6', '#17A2B8'],
                     plotOptions: {
                         bar: {
                             columnWidth: '55%',
@@ -444,6 +462,22 @@
                         },
                         min: 0,
                         forceNiceScale: true,
+                        labels: {
+                            formatter: (val) => val.toFixed(1)
+                        }
+                    },
+                    tooltip: {
+                        shared: true,
+                        intersect: false,
+                        x: {
+                            formatter: (val, opts) => {
+                                const holiday = holidays[opts.dataPointIndex];
+                                return holiday ? `${val} — ${holiday}` : val;
+                            }
+                        },
+                        y: {
+                            formatter: (val) => val > 0 ? val + 'h' : '—'
+                        }
                     },
                     legend: {
                         position: 'bottom'

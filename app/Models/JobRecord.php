@@ -119,9 +119,11 @@ class JobRecord extends Model
 
     /**
      * Splits this job's worked time into normal and overtime hours, using the
-     * technician's shift end as the cut-off. Returns null while the job is still open.
+     * technician's shift end as the cut-off. Work started on a holiday (weekly day
+     * off or listed public holiday) counts entirely as HOT instead.
+     * Returns null while the job is still open.
      *
-     * @return array{total: float, normal: float, ot: float}|null
+     * @return array{total: float, normal: float, ot: float, hot: float, holiday: ?string}|null
      */
     public function workedHours(?Shift $shift): ?array
     {
@@ -132,6 +134,17 @@ class JobRecord extends Model
         $start = $this->check_in_time;
         $end = $this->check_out_time;
         $totalMinutes = max(0, $start->diffInMinutes($end));
+
+        $holiday = Holiday::reasonFor($start);
+        if ($holiday) {
+            return [
+                'total'   => round($totalMinutes / 60, 2),
+                'normal'  => 0.0,
+                'ot'      => 0.0,
+                'hot'     => round($totalMinutes / 60, 2),
+                'holiday' => $holiday,
+            ];
+        }
 
         $otMinutes = 0;
         if ($shift) {
@@ -145,9 +158,11 @@ class JobRecord extends Model
         }
 
         return [
-            'total'  => round($totalMinutes / 60, 2),
-            'normal' => round(($totalMinutes - $otMinutes) / 60, 2),
-            'ot'     => round($otMinutes / 60, 2),
+            'total'   => round($totalMinutes / 60, 2),
+            'normal'  => round(($totalMinutes - $otMinutes) / 60, 2),
+            'ot'      => round($otMinutes / 60, 2),
+            'hot'     => 0.0,
+            'holiday' => null,
         ];
     }
 

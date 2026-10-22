@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\RouteController;
 use App\Http\Controllers\Admin\TimesheetApprovalController;
 use App\Http\Controllers\Admin\MonthlyMaintenanceController;
 use App\Http\Controllers\Admin\AdminJobTypeController;
+use App\Http\Controllers\Admin\HolidayController;
 
 require __DIR__ . '/auth.php';
 
@@ -99,6 +100,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
 
     Route::prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/', [AttendanceController::class, 'index'])->name('index');
+    });
+
+    Route::prefix('holidays')->name('holidays.')->middleware('role:Super Admin,Admin,Manager')->group(function () {
+        Route::get('/', [HolidayController::class, 'index'])->name('index');
+        Route::post('/', [HolidayController::class, 'store'])->name('store');
+        Route::delete('/{holiday}', [HolidayController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('timesheet-approval')->name('timesheet-approval.')->group(function () {

@@ -126,6 +126,11 @@
                         <li class="sub-nav-item">
                             <a class="sub-nav-link" href="{{ route('admin.timesheet-approval.index') }}">Approval</a>
                         </li>
+                        @if(in_array(auth()->user()?->type, ['Super Admin', 'Admin', 'Manager']))
+                            <li class="sub-nav-item">
+                                <a class="sub-nav-link" href="{{ route('admin.holidays.index') }}">Holidays</a>
+                            </li>
+                        @endif
                     </ul>
                 </div>
             </li>
