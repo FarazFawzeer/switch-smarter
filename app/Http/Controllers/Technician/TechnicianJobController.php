@@ -16,6 +16,9 @@ class TechnicianJobController extends Controller
 {
     private const COMPLETION_RADIUS_METERS = 200;
 
+    /** Statuses the Jobs page can be filtered by (same four as the dashboard tiles). */
+    public const LIST_STATUSES = ['pending', 'in_progress', 'completed', 'on_hold'];
+
     public const BREAKDOWN_CAUSES = [
         'Maintenance adjustment',
         'Client issue',
@@ -73,9 +76,18 @@ class TechnicianJobController extends Controller
             ->withoutOrphanPpm()
             ->whereBetween('scheduled_date', [now()->startOfMonth(), now()->endOfMonth()]);
 
+        // Status tab, opened from the Job Overview tiles on the dashboard
+        $status = $request->input('status');
+        if (in_array($status, self::LIST_STATUSES, true)) {
+            $query->where('status', $status);
+        }
+
         if ($request->filled('unit_search')) {
-            $search = $request->input('unit_search');
-            $query->whereHas('unit', fn ($q) => $q->where('identification_no', 'like', "%{$search}%"));
+            $search = trim($request->input('unit_search'));
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('unit', fn ($u) => $this->matchUnitSearch($u, $search))
+                    ->orWhere('job_code', 'like', "%{$search}%");
+            });
         }
 
         $paginatedJobs = $query->orderBy('scheduled_date')->paginate(8)->withQueryString();
@@ -159,19 +171,46 @@ class TechnicianJobController extends Controller
                 'url'     => route('technician.activities.show', $job->id),
             ]);
         } else {
+            // Breakdown / Repair: first the technician's own jobs of this type that match by
+            // JOB NUMBER (e.g. BD-2026-00003) or unit — open ones to continue, and an exact
+            // job-number match even if completed — then any unit to report a new one.
+            $existing = JobRecord::with(['contract:id,project_name', 'unit:id,identification_no,unit_number'])
+                ->where('assigned_technician_id', $technicianId)
+                ->where('job_type', $type)
+                ->where(function ($q) use ($search) {
+                    $q->where('job_code', 'like', "%{$search}%")
+                        ->orWhere(fn ($open) => $open->whereIn('status', ['pending', 'in_progress', 'on_hold'])
+                            ->whereHas('unit', fn ($u) => $this->matchUnitSearch($u, $search)));
+                })
+                ->orderByDesc('id')
+                ->limit(10)
+                ->get();
+
+            $statusLabels = ['pending' => 'Not started', 'in_progress' => 'Ongoing', 'on_hold' => 'Saved draft', 'completed' => 'Completed'];
+
+            $results = $existing->map(fn ($job) => [
+                'mode'    => 'existing',
+                'job_id'  => $job->id,
+                'unit_id' => ($job->job_code ? $job->job_code . ' · ' : '') . $this->unitLabel($job->unit),
+                'project' => optional($job->contract)->project_name ?? '—',
+                'note'    => ($statusLabels[$job->status] ?? ucfirst($job->status)) . ' — reported ' . $job->scheduled_date->format('d M Y'),
+                'url'     => route('technician.activities.show', $job->id),
+            ]);
+
             $units = ElevatorUnit::with('contract:id,project_name,location')
                 ->where(fn ($q) => $this->matchUnitSearch($q, $search))
                 ->whereHas('contract', fn ($q) => $q->where('status', 'active'))
                 ->limit(10)
                 ->get();
 
-            $results = $units->map(fn ($unit) => [
+            $results = $results->concat($units->map(fn ($unit) => [
                 'mode'        => 'new',
                 'unit_id_pk'  => $unit->id,
                 'unit_id'     => $this->unitLabel($unit),
                 'project'     => optional($unit->contract)->project_name ?? '—',
+                'note'        => 'Tap to report a new ' . ($type === 'breakdown' ? 'breakdown' : 'repair'),
                 'contract_id' => $unit->contract_id,
-            ]);
+            ]))->values();
         }
 
         return response()->json(['results' => $results]);
@@ -596,9 +635,19 @@ class TechnicianJobController extends Controller
         $attendance->save();
     }
 
-    public function jobsPage()
+    public function jobsPage(Request $request)
     {
-        return view('technician.jobs.browse');
+        $status = in_array($request->input('status'), self::LIST_STATUSES, true) ? $request->input('status') : '';
+
+        // Same month + same rules as the dashboard tiles, so the numbers match
+        $statusCounts = JobRecord::where('assigned_technician_id', Auth::id())
+            ->withoutOrphanPpm()
+            ->whereBetween('scheduled_date', [now()->startOfMonth(), now()->endOfMonth()])
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        return view('technician.jobs.browse', compact('status', 'statusCounts'));
     }
 
     public function schedulePage()

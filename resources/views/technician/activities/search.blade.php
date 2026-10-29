@@ -19,7 +19,8 @@
     </div>
 
     <div class="position-relative mb-3">
-        <input type="text" id="unitSearchInput" class="form-control" placeholder="Type the unit ID..." autofocus>
+        <input type="text" id="unitSearchInput" class="form-control"
+            placeholder="{{ in_array($type, ['breakdown', 'repair']) ? 'Type the unit ID or job no (e.g. BD-2026-00003)...' : 'Type the unit ID...' }}" autofocus>
     </div>
 
     <div id="unitResults"></div>
@@ -30,7 +31,8 @@
         @elseif($type === 'casual_job')
             Showing units with an existing {{ strtolower($labelMap[$type]) }} assigned to you.
         @else
-            Search any unit — this will create a new {{ strtolower($labelMap[$type]) }} report.
+            Type a job number to open one of your existing {{ strtolower($labelMap[$type]) }} jobs (e.g. a saved draft),
+            or search any unit to report a new one.
         @endif
     </p>
 

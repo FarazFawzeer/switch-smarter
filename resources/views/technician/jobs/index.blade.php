@@ -23,7 +23,9 @@
 
     .th-overview-card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 4px rgba(15,42,67,0.06); margin-bottom: 16px; }
     .th-overview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-    .th-stat-tile { border-radius: 12px; padding: 14px 6px; text-align: center; color: #fff; }
+    .th-stat-tile { display: block; border-radius: 12px; padding: 14px 6px; text-align: center; color: #fff; text-decoration: none; transition: transform .12s ease, box-shadow .12s ease; }
+    .th-stat-tile:hover, .th-stat-tile:focus { color: #fff; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(15,42,67,0.18); }
+    .th-stat-tile:active { transform: scale(0.97); }
     .th-stat-tile .num { font-size: 22px; font-weight: 800; line-height: 1; }
     .th-stat-tile .lbl { font-size: 10.5px; margin-top: 5px; opacity: 0.95; font-weight: 600; }
 
@@ -44,6 +46,21 @@
     .th-status-done { background: rgba(46,158,91,0.12); color: #2E9E5B; }
     .th-status-hold { background: rgba(135,146,162,0.15); color: #56606f; }
     .th-status-todo { background: rgba(240,162,2,0.12); color: #B57900; }
+
+    /* Today's Schedule status groups */
+    .th-group-head {
+        display: flex; align-items: center; gap: 6px; margin: 12px 0 2px; padding: 6px 10px;
+        border-radius: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    }
+    .th-group-head:first-of-type { margin-top: 4px; }
+    .th-group-head iconify-icon { font-size: 16px; }
+    .th-group-count { margin-left: auto; background: #fff; border-radius: 10px; padding: 0 8px; font-size: 11px; }
+    .th-group-ongoing { background: rgba(46,134,222,0.10); color: #2E86DE; }
+    .th-group-hold { background: rgba(135,146,162,0.14); color: #56606f; }
+    .th-group-todo { background: rgba(240,162,2,0.12); color: #B57900; }
+    .th-group-done { background: rgba(46,158,91,0.10); color: #2E9E5B; }
+    .th-group-head + .th-schedule-item { border-top: none; }
+    .th-schedule-item.is-done .title, .th-schedule-item.is-done .sub { opacity: .7; }
 
     /* Compact floating action button — bottom right, above the bottom nav */
     .th-fab {
@@ -74,22 +91,23 @@
         <a href="{{ route('technician.jobs.browse') }}">View All</a>
     </div>
     <div class="th-overview-grid">
-        <div class="th-stat-tile" style="background:#F0A202;">
+        {{-- each tile opens the Jobs page filtered to that status --}}
+        <a href="{{ route('technician.jobs.browse', ['status' => 'pending']) }}" class="th-stat-tile" style="background:#F0A202;">
             <div class="num">{{ $pendingCount }}</div>
             <div class="lbl">Pending</div>
-        </div>
-        <div class="th-stat-tile" style="background:#2E86DE;">
+        </a>
+        <a href="{{ route('technician.jobs.browse', ['status' => 'in_progress']) }}" class="th-stat-tile" style="background:#2E86DE;">
             <div class="num">{{ $inProgressCount }}</div>
             <div class="lbl">In Progress</div>
-        </div>
-        <div class="th-stat-tile" style="background:#2E9E5B;">
+        </a>
+        <a href="{{ route('technician.jobs.browse', ['status' => 'completed']) }}" class="th-stat-tile" style="background:#2E9E5B;">
             <div class="num">{{ $completedCount }}</div>
             <div class="lbl">Completed</div>
-        </div>
-        <div class="th-stat-tile" style="background:#8792a2;">
+        </a>
+        <a href="{{ route('technician.jobs.browse', ['status' => 'on_hold']) }}" class="th-stat-tile" style="background:#8792a2;">
             <div class="num">{{ $onHoldCount }}</div>
             <div class="lbl">On Hold</div>
-        </div>
+        </a>
     </div>
 </div>
 
@@ -106,44 +124,58 @@
         $typeLabelMap = ['ppm' => 'PPM', 'casual_job' => 'Casual Job', 'repair' => 'Repair', 'breakdown' => 'Breakdown'];
     @endphp
 
-    @forelse($todaysSchedule as $job)
-        @php
-            // Work status shown next to the unit: Ongoing once started, Completed when done
-            [$statusLabel, $statusClass] = match ($job->status) {
-                'completed'   => ['Completed', 'done'],
-                'in_progress' => ['Ongoing', 'ongoing'],
-                'on_hold'     => ['On Hold', 'hold'],
-                default       => ['Not Started', 'todo'],
-            };
-        @endphp
-        <a href="{{ route('technician.activities.show', $job->id) }}" class="th-schedule-item">
-            <div class="th-schedule-icon" style="background:{{ $typeColorMap[$job->job_type] ?? '#8792a2' }};">
-                <iconify-icon icon="{{ $typeIconMap[$job->job_type] ?? 'solar:clipboard-list-outline' }}"></iconify-icon>
-            </div>
-            <div>
-                <div class="title">
-                    {{ optional($job->unit)->identification_no ?? '—' }}
-                    @if(optional($job->unit)->unit_number)
-                        <span class="text-muted fw-normal" style="font-size:12px;">({{ $job->unit->unit_number }})</span>
-                    @endif
-                    <span class="th-status th-status-{{ $statusClass }}">{{ $statusLabel }}</span>
-                </div>
-                <div class="sub">
-                    {{ $typeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}
-                    @if(optional($job->contract)->project_name) · {{ $job->contract->project_name }} @endif
-                </div>
-            </div>
-            <div class="time">
-                @if($job->check_out_time)
-                    {{ $job->check_out_time->format('h:i A') }}
-                @elseif($job->check_in_time)
-                    {{ $job->check_in_time->format('h:i A') }}
-                @endif
-            </div>
-        </a>
-    @empty
+    @php
+        // Today's jobs grouped by work status: what's in hand first, finished work last
+        $statusGroups = [
+            'in_progress' => ['Ongoing', 'ongoing', 'solar:play-circle-bold'],
+            'on_hold'     => ['On Hold', 'hold', 'solar:pause-circle-bold'],
+            'pending'     => ['Not Started', 'todo', 'solar:clock-circle-bold'],
+            'completed'   => ['Completed', 'done', 'solar:check-circle-bold'],
+        ];
+        $grouped = $todaysSchedule->groupBy(fn ($job) => array_key_exists($job->status, $statusGroups) ? $job->status : 'pending');
+    @endphp
+
+    @if($todaysSchedule->isEmpty())
         <p class="text-center text-muted small py-3 mb-0">Nothing scheduled for today.</p>
-    @endforelse
+    @endif
+
+    @foreach($statusGroups as $statusKey => [$groupLabel, $statusClass, $groupIcon])
+        @continue(! $grouped->has($statusKey))
+
+        <div class="th-group-head th-group-{{ $statusClass }}">
+            <iconify-icon icon="{{ $groupIcon }}"></iconify-icon>
+            {{ $groupLabel }}
+            <span class="th-group-count">{{ $grouped[$statusKey]->count() }}</span>
+        </div>
+
+        @foreach($grouped[$statusKey] as $job)
+            <a href="{{ route('technician.activities.show', $job->id) }}" class="th-schedule-item {{ $statusKey === 'completed' ? 'is-done' : '' }}">
+                <div class="th-schedule-icon" style="background:{{ $typeColorMap[$job->job_type] ?? '#8792a2' }};">
+                    <iconify-icon icon="{{ $typeIconMap[$job->job_type] ?? 'solar:clipboard-list-outline' }}"></iconify-icon>
+                </div>
+                <div>
+                    <div class="title">
+                        {{ optional($job->unit)->identification_no ?? '—' }}
+                        @if(optional($job->unit)->unit_number)
+                            <span class="text-muted fw-normal" style="font-size:12px;">({{ $job->unit->unit_number }})</span>
+                        @endif
+                        <span class="th-status th-status-{{ $statusClass }}">{{ $groupLabel }}</span>
+                    </div>
+                    <div class="sub">
+                        {{ $typeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}
+                        @if(optional($job->contract)->project_name) · {{ $job->contract->project_name }} @endif
+                    </div>
+                </div>
+                <div class="time">
+                    @if($job->check_out_time)
+                        {{ $job->check_out_time->format('h:i A') }}
+                    @elseif($job->check_in_time)
+                        {{ $job->check_in_time->format('h:i A') }}
+                    @endif
+                </div>
+            </a>
+        @endforeach
+    @endforeach
 </div>
 
 <a href="{{ route('technician.activities.select') }}" class="th-fab" aria-label="New Activity">

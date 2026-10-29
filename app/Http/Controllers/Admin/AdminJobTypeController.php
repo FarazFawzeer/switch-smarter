@@ -46,11 +46,16 @@ class AdminJobTypeController extends Controller
         $month = (int) $request->get('month', now()->month);
         $year = (int) $request->get('year', now()->year);
 
+        $search = trim((string) $request->input('search', ''));
+
+        // A search (job number, unit, project) looks across ALL months — a job number typed
+        // in from an older report must still be found, not only the selected month's jobs.
+        $searchAllMonths = $search !== '';
+
         $query = JobRecord::query()
             ->where('job_type', $jobType)
-            ->whereYear('scheduled_date', $year)
-            ->whereMonth('scheduled_date', $month)
-            ->with(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit:id,identification_no', 'technician:id,name,employee_id']);
+            ->when(! $searchAllMonths, fn ($q) => $q->whereYear('scheduled_date', $year)->whereMonth('scheduled_date', $month))
+            ->with(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit:id,identification_no,unit_number', 'technician:id,name,employee_id']);
 
         if ($request->filled('engineer_id')) {
             $query->whereHas('contract', fn($q) => $q->where('assigned_engineer_id', $request->input('engineer_id')));
@@ -64,12 +69,14 @@ class AdminJobTypeController extends Controller
             $query->whereHas('contract', fn($q) => $q->where('route_id', $request->input('route_id')));
         }
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
+        if ($searchAllMonths) {
             $query->where(function ($q) use ($search) {
                 $q->whereHas('contract', fn($cq) => $cq->where('project_name', 'like', "%{$search}%"))
-                    ->orWhereHas('unit', fn($uq) => $uq->where('identification_no', 'like', "%{$search}%"))
-                    ->orWhere('job_code', 'like', "%{$search}%");
+                    ->orWhereHas('unit', fn($uq) => $uq->where(fn ($w) => $w->where('identification_no', 'like', "%{$search}%")
+                        ->orWhere('unit_number', 'like', "%{$search}%")))
+                    ->orWhere('job_code', 'like', "%{$search}%")
+                    ->orWhere('repair_job_no', 'like', "%{$search}%")
+                    ->orWhere('po_number', 'like', "%{$search}%");
             });
         }
 
@@ -117,7 +124,8 @@ class AdminJobTypeController extends Controller
             'yearOptions',
             'label',
             'jobType',
-            'routeName'
+            'routeName',
+            'searchAllMonths'
         ));
     }
 

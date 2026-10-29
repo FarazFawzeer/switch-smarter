@@ -19,7 +19,10 @@
                     <div>
                         <span class="badge mb-1" style="background:{{ $typeColor }}1A; color:{{ $typeColor }}; font-weight:700;">{{ $typeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}</span>
                         <p class="mb-1 fw-bold text-dark">{{ optional($job->unit)->identification_no ?? 'Unassigned unit' }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }}</p>
-                        <p class="mb-1 small text-muted">{{ optional($job->contract)->project_name ?? 'Unknown project' }}</p>
+                        <p class="mb-1 small text-muted">
+                            {{ optional($job->contract)->project_name ?? 'Unknown project' }}
+                            @if($job->job_code) · {{ $job->job_code }} @endif
+                        </p>
                         <p class="mb-0 small text-muted">
                             <iconify-icon icon="solar:calendar-outline" style="font-size:13px;"></iconify-icon>
                             {{ $job->scheduled_date->format('d M Y') }}
@@ -34,8 +37,14 @@
     <div class="text-center text-muted py-5">
         <iconify-icon icon="solar:calendar-mark-outline" style="font-size: 40px; opacity: 0.4;"></iconify-icon>
         <p class="mt-2 mb-0">
+            @php
+                $statusNames = ['pending' => 'pending', 'in_progress' => 'in-progress', 'completed' => 'completed', 'on_hold' => 'on-hold'];
+                $statusWord = $statusNames[request('status')] ?? null;
+            @endphp
             @if(request('unit_search'))
-                No jobs found for unit "{{ request('unit_search') }}" this month.
+                No {{ $statusWord ? $statusWord . ' ' : '' }}jobs found for "{{ request('unit_search') }}" this month.
+            @elseif($statusWord)
+                No {{ $statusWord }} jobs this month.
             @else
                 No jobs assigned for this month.
             @endif

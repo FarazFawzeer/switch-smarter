@@ -24,7 +24,13 @@
                     <option value="{{ $y }}" {{ $year == $y ? 'selected' : '' }}>{{ $y }}</option>
                 @endforeach
             </select>
-            <span class="text-muted small">Showing {{ strtolower($label) }} records reported this month.</span>
+            @if($searchAllMonths)
+                <span class="small fw-semibold" style="color:#2E5AAC;">
+                    Searching all months for "{{ request('search') }}" — clear the search to go back to the selected month.
+                </span>
+            @else
+                <span class="text-muted small">Showing {{ strtolower($label) }} records reported this month.</span>
+            @endif
         </form>
     </div>
 </div>
@@ -137,7 +143,7 @@
             <div class="col-auto">
                 <label class="form-label small mb-1">Search</label>
                 <input type="text" name="search" id="searchInput" class="form-control form-control-sm" style="width: 200px;"
-                    placeholder="Project, unit ID, or job code..." value="{{ request('search') }}">
+                    placeholder="Job no, unit ID, or project..." value="{{ request('search') }}">
             </div>
             <div class="col-auto">
                 <label class="form-label small mb-1">Engineer</label>
@@ -196,6 +202,7 @@
         <table class="jt-table">
             <thead>
                 <tr>
+                    <th>Job No</th>
                     <th>Project</th>
                     <th>Unit</th>
                     <th>Route</th>
@@ -223,13 +230,26 @@
                         [$statusLabel, $statusColor] = $isOverdue ? ['Overdue', '#D64545'] : ($statusMap[$job->status] ?? [ucfirst($job->status), '#8792a2']);
                     @endphp
                     <tr>
+                        <td class="text-nowrap">
+                            <a href="{{ route('admin.job-types.show', $job->id) }}" class="fw-semibold text-decoration-none">
+                                {{ $job->job_code ?? '—' }}
+                            </a>
+                            @if($job->repair_job_no)
+                                <div class="text-muted" style="font-size:11px;">Ref: {{ $job->repair_job_no }}</div>
+                            @endif
+                        </td>
                         <td>
                             <a href="{{ route('admin.contracts.show', $job->contract_id) }}" class="fw-semibold text-dark text-decoration-none">
                                 {{ optional($job->contract)->project_name ?? '—' }}
                             </a>
                             <div class="text-muted" style="font-size:12px;">{{ optional($job->contract)->location }}</div>
                         </td>
-                        <td class="fw-semibold">{{ optional($job->unit)->identification_no ?? '—' }}</td>
+                        <td class="fw-semibold">
+                            {{ optional($job->unit)->identification_no ?? '—' }}
+                            @if(optional($job->unit)->unit_number)
+                                <span class="text-muted fw-normal">({{ $job->unit->unit_number }})</span>
+                            @endif
+                        </td>
                         <td>{{ optional(optional($job->contract)->route)->route_no ?? '—' }}</td>
                         <td>{{ optional(optional($job->contract)->engineer)->name ?? '—' }}</td>
                         <td>{{ optional($job->technician)->name ?? 'Unassigned' }}</td>
@@ -249,9 +269,15 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $jobType === 'casual_job' ? 10 : 9 }}" class="text-center text-muted py-5">
+                        <td colspan="{{ $jobType === 'casual_job' ? 11 : 10 }}" class="text-center text-muted py-5">
                             <iconify-icon icon="solar:clipboard-list-outline" style="font-size: 32px; opacity: 0.4;"></iconify-icon>
-                            <p class="mb-0 mt-2">No {{ strtolower($label) }} records found for this month with the current filters.</p>
+                            <p class="mb-0 mt-2">
+                                @if($searchAllMonths)
+                                    No {{ strtolower($label) }} record matches "{{ request('search') }}" in any month.
+                                @else
+                                    No {{ strtolower($label) }} records found for this month with the current filters.
+                                @endif
+                            </p>
                         </td>
                     </tr>
                 @endforelse
