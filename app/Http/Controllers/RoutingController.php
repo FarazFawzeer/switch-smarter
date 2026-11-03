@@ -21,6 +21,11 @@ class RoutingController extends Controller
      */
     public function root(Request $request, $first)
     {
+        // the dashboard needs its controller's data — never render it bare
+        if ($first === 'index') {
+            return redirect()->route('dashboard');
+        }
+
         return view($first);
     }
 

@@ -1,0 +1,346 @@
+/* =====================================================================
+   Switch Smarter — app theme (sidebar, topbar, page surfaces, dark mode)
+   Loaded after the template CSS. Plain CSS: no build step needed.
+   ===================================================================== */
+
+/* ---------- Design tokens ---------- */
+:root {
+    --ss-bg: #F4F6FA;
+    --ss-surface: #FFFFFF;
+    --ss-surface-2: #F5F7FA;
+    --ss-surface-3: #EEF1F6;
+    --ss-border: #E7EAF0;
+    --ss-text: #16233B;
+    --ss-text-2: #3C4655;
+    --ss-muted: #8792A2;
+    --ss-shadow: 0 1px 3px rgba(15, 42, 67, 0.06), 0 1px 2px rgba(15, 42, 67, 0.04);
+    --ss-shadow-lg: 0 10px 24px rgba(15, 42, 67, 0.10);
+
+    --ss-primary: #2E5AAC;
+    --ss-green: #1E9E74;
+    --ss-red: #D64545;
+    --ss-amber: #E08A00;
+    --ss-purple: #7B4FD6;
+    --ss-blue: #2E86DE;
+    --ss-teal: #1ABC9C;
+
+    /* sidebar is dark in BOTH modes, like the reference design */
+    --ss-side-bg: linear-gradient(180deg, #102436 0%, #0C1D2C 55%, #0A1824 100%);
+    --ss-side-text: #C9D3DF;
+    --ss-side-muted: #7F8FA3;
+    --ss-side-hover: rgba(255, 255, 255, 0.06);
+    --ss-side-active: linear-gradient(90deg, #1C8C6C 0%, #23A07D 100%);
+
+    --bs-sidebar-width: 250px;
+}
+
+html[data-bs-theme="dark"] {
+    --ss-bg: #0F1720;
+    --ss-surface: #17212C;
+    --ss-surface-2: #1D2935;
+    --ss-surface-3: #233140;
+    --ss-border: #2A3846;
+    --ss-text: #E6EDF5;
+    --ss-text-2: #C3CDD8;
+    --ss-muted: #8C9AAB;
+    --ss-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    --ss-shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.45);
+    --ss-primary: #6F9CF0;
+    --ss-side-bg: linear-gradient(180deg, #0B1824 0%, #08131D 100%);
+}
+
+body,
+.page-content {
+    background: var(--ss-bg);
+}
+
+/* ---------- Sidebar ---------- */
+.app-sidebar.ss-sidebar {
+    background: var(--ss-side-bg) !important;
+    border: 0 !important;
+    overflow: hidden;
+}
+
+.ss-sidebar .ss-logo {
+    line-height: normal;
+    height: 78px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ss-sidebar .ss-logo-link { display: flex; align-items: center; }
+.ss-sidebar .ss-logo .logo-lg { height: 44px !important; width: auto !important; }
+.ss-sidebar .ss-logo .logo-sm { height: 34px; width: 34px; }
+
+.ss-sidebar .scrollbar { height: calc(100% - 78px); }
+
+.ss-sidebar .navbar-nav { margin: 14px 14px 0; }
+
+.ss-sidebar .navbar-nav .nav-item { padding: 1px 0; }
+
+.ss-sidebar .navbar-nav .nav-item .nav-link {
+    color: var(--ss-side-text);
+    font-size: 14.5px;
+    font-weight: 500;
+    padding: 11px 14px;
+    margin: 0;
+    border-radius: 10px;
+    gap: 14px;
+    position: relative;
+}
+
+.ss-sidebar .navbar-nav .nav-item .nav-link .nav-icon { color: var(--ss-side-muted); transition: color .2s ease; }
+
+.ss-sidebar .navbar-nav .nav-item .nav-link:hover,
+.ss-sidebar .navbar-nav .nav-item .nav-link:focus {
+    color: #FFFFFF;
+    background: var(--ss-side-hover);
+}
+
+.ss-sidebar .navbar-nav .nav-item .nav-link:hover .nav-icon { color: #FFFFFF; }
+
+.ss-sidebar .navbar-nav .nav-item .nav-link.active {
+    color: #FFFFFF;
+    background: var(--ss-side-active);
+    box-shadow: 0 6px 14px rgba(28, 140, 108, 0.35);
+    font-weight: 600;
+}
+
+.ss-sidebar .navbar-nav .nav-item .nav-link.active .nav-icon { color: #FFFFFF; }
+
+.ss-sidebar .navbar-nav .nav-item .nav-link .badge { margin-left: auto; font-size: 10.5px; }
+
+/* sub menu */
+.ss-sidebar .menu-arrow::after { color: var(--ss-side-muted); }
+.ss-sidebar .navbar-nav .sub-navbar-nav { padding: 4px 0 6px 44px; }
+.ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item { padding: 0; }
+.ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item .sub-nav-link {
+    color: var(--ss-side-muted);
+    font-size: 13.5px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    gap: 8px;
+}
+.ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item .sub-nav-link:hover { color: #FFFFFF; background: var(--ss-side-hover); }
+.ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item .sub-nav-link.active { color: #4FD1A5; font-weight: 600; }
+
+/* brand card + waves */
+.ss-brand-card {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin: 28px 14px 90px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ss-brand-logo { width: 50px; height: 50px; border-radius: 12px; background: rgba(0, 0, 0, 0.28); padding: 7px; flex-shrink: 0; }
+.ss-brand-text { display: flex; flex-direction: column; line-height: 1.35; }
+.ss-brand-text strong { color: #FFFFFF; font-size: 13px; letter-spacing: .03em; }
+.ss-brand-text span { color: var(--ss-side-muted); font-size: 12px; }
+
+.ss-waves {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 120px;
+    pointer-events: none;
+    fill: none;
+    stroke: #1FA37E;
+    stroke-width: 1.2;
+    opacity: .35;
+}
+
+/* ---------- Collapsed (icon-only) sidebar ---------- */
+html[data-sidebar-size="condensed"] .ss-brand-card,
+html[data-sidebar-size="condensed"] .ss-waves { display: none; }
+
+/* let the hover pop-outs extend past the narrow sidebar */
+html[data-sidebar-size="condensed"] .app-sidebar.ss-sidebar { overflow: visible; }
+
+/* the template paints the logo box with its light sidebar colour (a white strip) — keep it navy */
+html[data-sidebar-size="condensed"] .ss-sidebar .logo-box {
+    background: #102436 !important;
+    padding: 0;
+    justify-content: center;
+}
+html[data-sidebar-size="condensed"] .ss-sidebar .logo-box .logo-sm { display: block !important; height: 36px; width: 36px; }
+html[data-sidebar-size="condensed"] .ss-sidebar .logo-box .logo-lg { display: none !important; }
+
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav { margin: 0; padding: 12px 10px; }
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav .nav-item .nav-link { justify-content: center; padding: 12px 0; }
+
+/* hover pop-outs (label + sub menu) — dark, matching the sidebar, instead of white with pale text */
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav > .nav-item:hover > .nav-link {
+    background: #16314A !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav > .nav-item:hover > .nav-link .nav-icon { color: #FFFFFF !important; }
+
+/* the label the template shows next to the icon on hover */
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav > .nav-item:hover > .nav-link > .nav-text {
+    background: #16314A !important;
+    color: #FFFFFF !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 0 10px 10px 0;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35) !important;
+    font-weight: 600;
+    height: 100%;
+    top: 0;
+}
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav > .nav-item:hover > .nav-link.active > .nav-text { background: #1C8C6C !important; }
+
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item .sub-nav-link { color: #C9D3DF !important; }
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item .sub-nav-link:hover { color: #FFFFFF !important; }
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav > .nav-item:hover > .nav-link.active { background: var(--ss-side-active) !important; }
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav > .nav-item:hover > .collapse > .sub-navbar-nav,
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav > .nav-item:hover > .collapsing > .sub-navbar-nav {
+    background: #16314A !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 0 0 10px 10px;
+    padding: 6px !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ---------- Topbar ---------- */
+.app-topbar.ss-topbar {
+    background: var(--ss-surface) !important;
+    border-bottom: 1px solid var(--ss-border) !important;
+    box-shadow: var(--ss-shadow);
+}
+
+.ss-topbar .topbar-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ss-text-2) !important;
+    background: transparent;
+    border: 0;
+    transition: background .15s ease;
+}
+
+.ss-topbar .topbar-button:hover { background: var(--ss-surface-2); }
+
+/* the template shows/hides these by class */
+.ss-topbar #light-dark-mode .light-mode { display: block; }
+.ss-topbar #light-dark-mode .dark-mode { display: none; }
+html[data-bs-theme="dark"] .ss-topbar #light-dark-mode .light-mode { display: none; }
+html[data-bs-theme="dark"] .ss-topbar #light-dark-mode .dark-mode { display: block; }
+
+.ss-search {
+    position: relative;
+    align-items: center;
+    gap: 8px;
+    background: var(--ss-surface-2);
+    border: 1px solid var(--ss-border);
+    border-radius: 999px;
+    padding: 0 16px;
+    height: 42px;
+    width: min(420px, 100%);
+    color: var(--ss-muted);
+}
+.ss-search input { border: 0; outline: 0; background: transparent; color: var(--ss-text); width: 100%; font-size: 13.5px; }
+.ss-search input::placeholder { color: var(--ss-muted); }
+.ss-search:focus-within { border-color: var(--ss-primary); box-shadow: 0 0 0 3px rgba(46, 90, 172, 0.12); }
+
+.ss-bell-badge {
+    position: absolute;
+    top: 4px;
+    right: 3px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--ss-red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 17px;
+    text-align: center;
+    border: 2px solid var(--ss-surface);
+}
+
+.ss-notify { width: 300px; padding: 0; overflow: hidden; }
+.ss-notify-head { padding: 12px 14px; font-weight: 700; color: var(--ss-text); border-bottom: 1px solid var(--ss-border); }
+.ss-notify-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--ss-text-2); text-decoration: none; font-size: 13px; border-bottom: 1px solid var(--ss-border); }
+.ss-notify-item:last-child { border-bottom: 0; }
+.ss-notify-item:hover { background: var(--ss-surface-2); color: var(--ss-text); }
+.ss-notify-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); flex-shrink: 0; }
+
+.ss-user { display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 4px; border-radius: 999px; color: var(--ss-text-2); text-decoration: none; }
+.ss-user:hover { background: var(--ss-surface-2); color: var(--ss-text); }
+.ss-user-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ss-border); }
+.ss-user-meta { flex-direction: column; line-height: 1.2; }
+.ss-user-meta strong { color: var(--ss-text); font-size: 13.5px; }
+.ss-user-meta span { color: var(--ss-muted); font-size: 11.5px; }
+
+/* ---------- Technician app: no sidebar, phone-first ---------- */
+.technician-app .page-content { margin-left: 0 !important; padding: 16px 14px 90px !important; max-width: 720px; margin-right: auto !important; margin-left: auto !important; }
+.technician-app .app-topbar { padding-left: 0 !important; }
+.technician-app .page-content > .container-fluid { padding: 0; }
+.technician-app .footer { display: none; }
+
+/* breathing room between the last card on a page and the footer */
+.page-content > .container-fluid { padding-bottom: 28px; }
+
+/* ---------- Footer ---------- */
+.footer { background: transparent !important; color: var(--ss-muted); border-top: 1px solid var(--ss-border); }
+
+/* =====================================================================
+   Dark mode fixes for the app's own pages (they use fixed light colours)
+   ===================================================================== */
+html[data-bs-theme="dark"] .page-content .card,
+html[data-bs-theme="dark"] .page-content [class$="-card"],
+html[data-bs-theme="dark"] .page-content [class*="-card "] {
+    background-color: var(--ss-surface);
+    border-color: var(--ss-border);
+}
+
+html[data-bs-theme="dark"] .page-content table thead th {
+    background: var(--ss-surface-2) !important;
+    color: var(--ss-muted) !important;
+    border-color: var(--ss-border) !important;
+}
+
+html[data-bs-theme="dark"] .page-content table tbody td { border-color: var(--ss-border) !important; color: var(--ss-text-2); }
+html[data-bs-theme="dark"] .page-content table tbody tr:hover { background: var(--ss-surface-2) !important; }
+
+/* headings / values that were hard-coded to navy */
+html[data-bs-theme="dark"] .page-content .text-dark,
+html[data-bs-theme="dark"] .page-content h1, html[data-bs-theme="dark"] .page-content h2,
+html[data-bs-theme="dark"] .page-content h3, html[data-bs-theme="dark"] .page-content h4,
+html[data-bs-theme="dark"] .page-content h5, html[data-bs-theme="dark"] .page-content h6,
+html[data-bs-theme="dark"] .page-content [style*="#16233b"],
+html[data-bs-theme="dark"] .page-content [style*="#16233B"],
+html[data-bs-theme="dark"] .page-content [class*="-title"],
+html[data-bs-theme="dark"] .page-content [class*="-value"],
+html[data-bs-theme="dark"] .page-content td.fw-semibold:not([style*="color"]),
+html[data-bs-theme="dark"] .page-content td .fw-semibold:not([style*="color"]):not(a) { color: var(--ss-text) !important; }
+
+/* light grey panels / inputs */
+html[data-bs-theme="dark"] .page-content [style*="background:#F5F7FA"],
+html[data-bs-theme="dark"] .page-content [style*="background: #F5F7FA"],
+html[data-bs-theme="dark"] .page-content [style*="background:#fff"],
+html[data-bs-theme="dark"] .page-content [style*="background: #fff"],
+html[data-bs-theme="dark"] .page-content .bg-light { background-color: var(--ss-surface-2) !important; }
+
+html[data-bs-theme="dark"] .page-content .form-control,
+html[data-bs-theme="dark"] .page-content .form-select { background-color: var(--ss-surface-2); border-color: var(--ss-border); color: var(--ss-text); }
+
+html[data-bs-theme="dark"] .alert-light { background: var(--ss-surface-2); color: var(--ss-text-2); border-color: var(--ss-border) !important; }
+
+html[data-bs-theme="dark"] .modal-content,
+html[data-bs-theme="dark"] .dropdown-menu { background: var(--ss-surface); border-color: var(--ss-border); }
+
+html[data-bs-theme="dark"] .swal2-popup { background: var(--ss-surface) !important; color: var(--ss-text) !important; }
+html[data-bs-theme="dark"] .swal2-title, html[data-bs-theme="dark"] .swal2-html-container { color: var(--ss-text) !important; }

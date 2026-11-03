@@ -30,7 +30,16 @@ class AdminJobTypeController extends Controller
     {
         abort_unless(in_array($job->job_type, ['breakdown', 'repair', 'casual_job']), 404);
 
-        $job->load(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit', 'technician:id,name,employee_id', 'assignedBy:id,name', 'reportedBy:id,name']);
+        // a helper technician's row → show the main job (the team is listed there)
+        if ($job->parent_job_id) {
+            return redirect()->route('admin.job-types.show', $job->parent_job_id);
+        }
+
+        $job->load(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit', 'technician:id,name,employee_id', 'assignedBy:id,name', 'reportedBy:id,name', 'helpers.technician:id,name,employee_id']);
+
+        // technicians who could still be added to the team
+        $teamIds = $job->helpers->pluck('assigned_technician_id')->push($job->assigned_technician_id)->filter();
+        $availableTechnicians = User::where('type', 'Technician')->whereNotIn('id', $teamIds)->orderBy('name')->get(['id', 'name']);
 
         $labelMap = ['breakdown' => 'Breakdown', 'repair' => 'Repair', 'casual_job' => 'Casual Job'];
         $routeNameMap = ['breakdown' => 'admin.job-types.breakdown', 'repair' => 'admin.job-types.repair', 'casual_job' => 'admin.job-types.casual-job'];
@@ -38,7 +47,61 @@ class AdminJobTypeController extends Controller
         $label = $labelMap[$job->job_type];
         $backRoute = $routeNameMap[$job->job_type];
 
-        return view('admin.job-types.show', compact('job', 'label', 'backRoute'));
+        return view('admin.job-types.show', compact('job', 'label', 'backRoute', 'availableTechnicians'));
+    }
+
+    /**
+     * Add another technician to a breakdown / repair / casual job. They get their own
+     * linked row (own start/finish = own timesheet); the job itself is still counted once.
+     */
+    public function addTechnician(Request $request, JobRecord $job)
+    {
+        abort_unless(in_array($job->job_type, ['breakdown', 'repair', 'casual_job']), 404);
+        $main = $job->parent_job_id ? $job->parent : $job;
+
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'technician_id' => ['required', \Illuminate\Validation\Rule::exists('users', 'id')->where('type', 'Technician')],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
+        }
+
+        $technicianId = (int) $request->input('technician_id');
+        $alreadyOnTeam = (int) $main->assigned_technician_id === $technicianId
+            || $main->helpers()->where('assigned_technician_id', $technicianId)->exists();
+
+        if ($alreadyOnTeam) {
+            return response()->json(['success' => false, 'message' => 'That technician is already on this job.'], 422);
+        }
+
+        $this->createHelper($main, $technicianId);
+
+        return response()->json([
+            'success' => true,
+            'message' => User::find($technicianId)->name . ' added to ' . $main->job_code . '. It now appears in their job list.',
+        ]);
+    }
+
+    private function createHelper(JobRecord $main, int $technicianId): JobRecord
+    {
+        return JobRecord::create([
+            'parent_job_id'          => $main->id,
+            'contract_id'            => $main->contract_id,
+            'elevator_unit_id'       => $main->elevator_unit_id,
+            'job_type'               => $main->job_type,
+            'scheduled_date'         => $main->scheduled_date,
+            'status'                 => 'pending',
+            'assigned_technician_id' => $technicianId,
+            'assigned_by'            => \Illuminate\Support\Facades\Auth::id(),
+            'reported_by'            => $main->reported_by,
+            'description'            => $main->description,
+            'breakdown_cause'        => $main->breakdown_cause,
+            'customer_name'          => $main->customer_name,
+            'cost'                   => $main->cost,
+            'repair_job_no'          => $main->repair_job_no,
+            'scope_of_work'          => $main->scope_of_work,
+        ]);
     }
 
     private function renderIndex(Request $request, string $jobType, string $label, string $viewName, string $routeName)
@@ -52,10 +115,17 @@ class AdminJobTypeController extends Controller
         // in from an older report must still be found, not only the selected month's jobs.
         $searchAllMonths = $search !== '';
 
+        // Main jobs only: when 2+ technicians attend the same job, the extra technicians'
+        // rows are linked helpers — listed under the job, but never counted twice.
         $query = JobRecord::query()
+            ->primary()
             ->where('job_type', $jobType)
             ->when(! $searchAllMonths, fn ($q) => $q->whereYear('scheduled_date', $year)->whereMonth('scheduled_date', $month))
-            ->with(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit:id,identification_no,unit_number', 'technician:id,name,employee_id']);
+            ->with([
+                'contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name',
+                'unit:id,identification_no,unit_number,operational_status', 'technician:id,name,employee_id',
+                'helpers:id,parent_job_id,assigned_technician_id,status,breakdown_cause', 'helpers.technician:id,name',
+            ]);
 
         if ($request->filled('engineer_id')) {
             $query->whereHas('contract', fn($q) => $q->where('assigned_engineer_id', $request->input('engineer_id')));
@@ -165,6 +235,8 @@ class AdminJobTypeController extends Controller
             'contract_id'           => ['required', 'exists:contracts,id'],
             'elevator_unit_id'      => ['required', 'exists:elevator_units,id'],
             'assigned_technician_id' => ['required', 'exists:users,id'],
+            'additional_technician_ids'   => ['nullable', 'array'],
+            'additional_technician_ids.*' => ['integer', \Illuminate\Validation\Rule::exists('users', 'id')->where('type', 'Technician')],
             'customer_name'         => ['nullable', 'string', 'max:255'],
             'repair_job_no'         => ['required', 'string', 'max:100'],
             'quotation_date'        => ['required', 'date'],
@@ -195,6 +267,12 @@ class AdminJobTypeController extends Controller
             $data['quotation_attachment'] = 'casual-job-quotations/' . $filename;
         }
 
+        $extraTechnicianIds = collect($data['additional_technician_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn ($id) => $id === (int) $data['assigned_technician_id'])
+            ->unique();
+        unset($data['additional_technician_ids']);
+
         $job = JobRecord::create($data + [
             'job_type'       => 'casual_job',
             'job_code'       => JobRecord::generateJobCode('casual_job'),
@@ -202,6 +280,11 @@ class AdminJobTypeController extends Controller
             'status'         => 'pending',
             'assigned_by'    => \Illuminate\Support\Facades\Auth::id(),
         ]);
+
+        // 2+ technicians: one casual job (counted once), one linked row per extra technician
+        foreach ($extraTechnicianIds as $technicianId) {
+            $this->createHelper($job, $technicianId);
+        }
 
         return response()->json([
             'success'  => true,

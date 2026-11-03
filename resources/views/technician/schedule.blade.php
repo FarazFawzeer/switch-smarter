@@ -25,7 +25,7 @@
         @endforeach
     @empty
         <div class="text-center text-muted py-5">
-            <iconify-icon icon="solar:calendar-mark-outline" style="font-size: 40px; opacity: 0.4;"></iconify-icon>
+            <x-ui-icon name="calendar" size="40" style="opacity: 0.4" />
             <p class="mt-2 mb-0">No jobs scheduled this month.</p>
         </div>
     @endforelse

@@ -16,42 +16,67 @@ class RouteController extends Controller
      */
     public function index()
     {
-        $routes = RouteModel::withCount('contracts')
-            ->with(['users' => fn ($q) => $q->select('users.id', 'users.name', 'users.type')])
+        $routes = RouteModel::query()
+            ->with([
+                'users' => fn ($q) => $q->select('users.id', 'users.name', 'users.type'),
+                'contracts' => fn ($q) => $q->select('id', 'route_id', 'project_name')->withCount(['elevatorUnits', 'jobs']),
+            ])
             ->orderBy('route_no')
             ->get()
-            ->map(fn ($route) => [
-                'id'              => $route->id,
-                'route_no'        => $route->route_no,
-                'description'     => $route->description,
-                'contracts_count' => $route->contracts_count,
-                'people'          => $route->users->map(fn ($u) => $u->name . ' (' . $u->type . ')')->implode(', '),
-            ]);
+            ->map(function ($route) {
+                // "Empty" project = no units and no jobs — e.g. left behind after a wrong bulk
+                // upload was cleaned up. It doesn't show in the master list (one row per unit)
+                // but it still held the route, so the route looked "In use".
+                $empty = $route->contracts->filter(fn ($c) => $c->elevator_units_count === 0 && $c->jobs_count === 0);
+
+                return [
+                    'id'              => $route->id,
+                    'route_no'        => $route->route_no,
+                    'description'     => $route->description,
+                    'contracts_count' => $route->contracts->count(),
+                    'empty_count'     => $empty->count(),
+                    'projects'        => $route->contracts->map(fn ($c) => $c->project_name . ($c->elevator_units_count === 0 && $c->jobs_count === 0 ? ' (empty)' : ''))->implode(', '),
+                    'deletable'       => $route->contracts->count() === $empty->count(),
+                    'people'          => $route->users->map(fn ($u) => $u->name . ' (' . $u->type . ')')->implode(', '),
+                ];
+            });
 
         return response()->json(['routes' => $routes]);
     }
 
     /**
-     * Delete a route that was added by mistake. Refused while any project is linked to it,
-     * so no contract ever loses its route silently.
+     * Delete a route that was added by mistake. Allowed when no REAL project uses it.
+     * Empty projects (no units, no jobs) still pointing at it are deleted with it —
+     * they are leftovers that can't be seen or used anywhere else.
      */
     public function destroy(RouteModel $route)
     {
-        $linked = $route->contracts()->count();
+        $contracts = $route->contracts()->withCount(['elevatorUnits', 'jobs'])->get();
+        $real = $contracts->filter(fn ($c) => $c->elevator_units_count > 0 || $c->jobs_count > 0);
 
-        if ($linked > 0) {
+        if ($real->isNotEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => "Route {$route->route_no} is linked to {$linked} project(s) and cannot be deleted. Move those projects to another route first.",
+                'message' => "Route {$route->route_no} is used by {$real->count()} project(s) with units ("
+                    . $real->pluck('project_name')->take(3)->implode(', ') . ($real->count() > 3 ? '…' : '')
+                    . '). Move those projects to another route first.',
             ], 422);
         }
 
-        // team assignments (route_user) are removed by the database cascade
-        $route->delete();
+        $emptyCount = $contracts->count();
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($route, $contracts) {
+            foreach ($contracts as $contract) {
+                $contract->delete();
+            }
+            // team assignments (route_user) are removed by the database cascade
+            $route->delete();
+        });
 
         return response()->json([
             'success' => true,
-            'message' => "Route {$route->route_no} deleted.",
+            'message' => "Route {$route->route_no} deleted"
+                . ($emptyCount ? " together with {$emptyCount} empty project(s) that had no units." : '.'),
         ]);
     }
 

@@ -170,6 +170,27 @@ class TechnicianJobController extends Controller
                 'project' => optional($job->contract)->project_name ?? '—',
                 'url'     => route('technician.activities.show', $job->id),
             ]);
+
+            // Open casual jobs held by another technician on a matching unit → join as a team
+            $mineUnitIds = $jobs->pluck('elevator_unit_id')->all();
+            $others = JobRecord::primary()
+                ->with(['contract:id,project_name', 'unit:id,identification_no,unit_number', 'technician:id,name'])
+                ->where('job_type', 'casual_job')
+                ->whereIn('status', ['pending', 'in_progress', 'on_hold'])
+                ->where('assigned_technician_id', '!=', $technicianId)
+                ->whereNotIn('elevator_unit_id', $mineUnitIds)
+                ->whereDoesntHave('helpers', fn ($h) => $h->where('assigned_technician_id', $technicianId))
+                ->whereHas('unit', fn ($q) => $this->matchUnitSearch($q, $search))
+                ->limit(10)
+                ->get();
+
+            $results = $results->concat($others->map(fn ($job) => [
+                'mode'       => 'new',
+                'unit_id_pk' => $job->elevator_unit_id,
+                'unit_id'    => $job->job_code . ' · ' . $this->unitLabel($job->unit),
+                'project'    => optional($job->contract)->project_name ?? '—',
+                'note'       => 'Assigned to ' . optional($job->technician)->name . ' — tap to JOIN (counted once)',
+            ]))->values();
         } else {
             // Breakdown / Repair: first the technician's own jobs of this type that match by
             // JOB NUMBER (e.g. BD-2026-00003) or unit — open ones to continue, and an exact
@@ -179,6 +200,7 @@ class TechnicianJobController extends Controller
                 ->where('job_type', $type)
                 ->where(function ($q) use ($search) {
                     $q->where('job_code', 'like', "%{$search}%")
+                        ->orWhereHas('parent', fn ($p) => $p->where('job_code', 'like', "%{$search}%"))
                         ->orWhere(fn ($open) => $open->whereIn('status', ['pending', 'in_progress', 'on_hold'])
                             ->whereHas('unit', fn ($u) => $this->matchUnitSearch($u, $search)));
                 })
@@ -188,29 +210,58 @@ class TechnicianJobController extends Controller
 
             $statusLabels = ['pending' => 'Not started', 'in_progress' => 'Ongoing', 'on_hold' => 'Saved draft', 'completed' => 'Completed'];
 
+            $existing->load('parent:id,job_code');
+
             $results = $existing->map(fn ($job) => [
                 'mode'    => 'existing',
                 'job_id'  => $job->id,
-                'unit_id' => ($job->job_code ? $job->job_code . ' · ' : '') . $this->unitLabel($job->unit),
+                'unit_id' => ($job->displayCode() ? $job->displayCode() . ' · ' : '') . $this->unitLabel($job->unit),
                 'project' => optional($job->contract)->project_name ?? '—',
                 'note'    => ($statusLabels[$job->status] ?? ucfirst($job->status)) . ' — reported ' . $job->scheduled_date->format('d M Y'),
                 'url'     => route('technician.activities.show', $job->id),
             ]);
 
-            $units = ElevatorUnit::with('contract:id,project_name,location')
+            // ANY unit can break down — not only units on an active / scheduled contract.
+            // (Units on an expired contract used to be hidden, so the search found nothing.)
+            $units = ElevatorUnit::with('contract:id,project_name,location,status')
                 ->where(fn ($q) => $this->matchUnitSearch($q, $search))
-                ->whereHas('contract', fn ($q) => $q->where('status', 'active'))
-                ->limit(10)
+                ->orderByRaw('identification_no = ? DESC, unit_number = ? DESC', [$search, $search])
+                ->orderBy('identification_no')
+                ->limit(15)
                 ->get();
 
-            $results = $results->concat($units->map(fn ($unit) => [
-                'mode'        => 'new',
-                'unit_id_pk'  => $unit->id,
-                'unit_id'     => $this->unitLabel($unit),
-                'project'     => optional($unit->contract)->project_name ?? '—',
-                'note'        => 'Tap to report a new ' . ($type === 'breakdown' ? 'breakdown' : 'repair'),
-                'contract_id' => $unit->contract_id,
-            ]))->values();
+            $label = $type === 'breakdown' ? 'breakdown' : 'repair';
+
+            $results = $results->concat($units->map(function ($unit) use ($type, $label) {
+                $open = $this->openTeamJob($unit->id, $type);
+                $mine = $open && (int) $open->assigned_technician_id === (int) Auth::id();
+
+                $note = match (true) {
+                    $open && ! $mine => 'Open ' . $open->job_code . ' by ' . optional($open->technician)->name . ' — tap to JOIN (counted once)',
+                    $open && $mine   => 'Your open ' . $open->job_code . ' — tap to continue',
+                    default          => 'Tap to report a new ' . $label,
+                };
+                if ($unit->isShutdown()) {
+                    $note .= ' · unit is SHUT DOWN';
+                }
+                if (optional($unit->contract)->status && $unit->contract->status !== 'active') {
+                    $note .= ' · contract ' . $unit->contract->status;
+                }
+
+                return [
+                    'mode'        => 'new',
+                    'unit_id_pk'  => $unit->id,
+                    'unit_id'     => $this->unitLabel($unit),
+                    'project'     => optional($unit->contract)->project_name ?? '—',
+                    'note'        => $note,
+                    'contract_id' => $unit->contract_id,
+                ];
+            }))
+                // a unit whose open job is already listed above (as "your job") isn't repeated
+                ->unique(fn ($r) => $r['mode'] === 'new' ? 'unit-' . $r['unit_id_pk'] : 'job-' . $r['job_id'])
+                ->reject(fn ($r) => $r['mode'] === 'new' && $existing->contains(fn ($j) => (int) $j->elevator_unit_id === (int) $r['unit_id_pk']
+                    && in_array($j->status, ['pending', 'in_progress', 'on_hold'], true)))
+                ->values();
         }
 
         return response()->json(['results' => $results]);
@@ -246,31 +297,78 @@ class TechnicianJobController extends Controller
             }
         }
 
+        // Team jobs: if this unit already has an OPEN breakdown / repair / casual job, a second
+        // technician JOINS it instead of opening a duplicate. They get their own row (own times,
+        // own timesheet) linked to the main job, and the job is still counted only once.
+        $parent = null;
+        if ($type !== 'ppm') {
+            $parent = $this->openTeamJob($unit->id, $type);
+
+            if ($parent) {
+                $mine = JobRecord::where('assigned_technician_id', Auth::id())
+                    ->where(fn ($q) => $q->whereKey($parent->id)->orWhere('parent_job_id', $parent->id))
+                    ->first();
+
+                if ($mine) {
+                    // already on this job — just open it
+                    return response()->json(['success' => true, 'redirect' => route('technician.activities.show', $mine->id)]);
+                }
+            }
+        }
+
         $job = JobRecord::create([
+            'parent_job_id'          => $parent?->id,
             'contract_id'            => $unit->contract_id,
             'elevator_unit_id'       => $unit->id,
             'job_type'               => $type,
-            'job_code'               => JobRecord::generateJobCode($type),
-            'scheduled_date'         => now()->toDateString(),
+            'job_code'               => $parent ? null : JobRecord::generateJobCode($type),
+            'scheduled_date'         => $parent ? $parent->scheduled_date : now()->toDateString(),
             'status'                 => 'pending',
             'assigned_technician_id' => Auth::id(),
             'assigned_by'            => Auth::id(),
-            'reported_by'            => Auth::id(),
+            'reported_by'            => $parent ? $parent->reported_by : Auth::id(),
+            'breakdown_cause'        => $parent?->breakdown_cause,
+            'description'            => $parent?->description,
+            'customer_name'          => $parent?->customer_name,
+            'cost'                   => $parent?->cost,
         ]);
 
         return response()->json([
             'success'  => true,
+            'message'  => $parent ? 'You joined ' . $parent->job_code . ' — your own times will be recorded.' : null,
             'redirect' => route('technician.activities.show', $job->id),
         ]);
+    }
+
+    /** The open (not completed) main job of this type on the unit, if any. */
+    private function openTeamJob(int $unitId, string $type): ?JobRecord
+    {
+        return JobRecord::primary()
+            ->where('elevator_unit_id', $unitId)
+            ->where('job_type', $type)
+            ->whereIn('status', ['pending', 'in_progress', 'on_hold'])
+            ->with('technician:id,name')
+            ->latest('id')
+            ->first();
     }
 
     public function activityShow(JobRecord $job)
     {
         abort_unless($job->assigned_technician_id === Auth::id(), 403);
 
-        $job->load(['contract', 'unit']);
+        $job->load(['contract', 'unit', 'parent.technician:id,name']);
 
-        return view('technician.activities.show', compact('job'));
+        // everyone working on this job (main job + helpers), for the "Team" line
+        $mainId = $job->parent_job_id ?? $job->id;
+        $team = JobRecord::with('technician:id,name')
+            ->where(fn ($q) => $q->whereKey($mainId)->orWhere('parent_job_id', $mainId))
+            ->get()
+            ->pluck('technician.name')
+            ->filter()
+            ->unique()
+            ->values();
+
+        return view('technician.activities.show', compact('job', 'team'));
     }
 
     /**
@@ -326,7 +424,7 @@ class TechnicianJobController extends Controller
             return response()->json(['success' => false, 'errors' => ['general' => ['You must start this activity before saving a draft.']]], 422);
         }
 
-        if ($job->check_out_time || $job->status === 'completed') {
+        if ($job->status === 'completed') {
             return response()->json(['success' => false, 'errors' => ['general' => ['This activity is already completed and can no longer be edited.']]], 422);
         }
 
@@ -348,11 +446,12 @@ class TechnicianJobController extends Controller
             return response()->json(['success' => false, 'errors' => ['general' => ['You must start this activity before completing it.']]], 422);
         }
 
-        if ($job->check_out_time) {
+        // (an engineer may already have filled in a forgotten check-out time — that is not "completed")
+        if ($job->status === 'completed') {
             return response()->json(['success' => false, 'errors' => ['general' => ['This activity is already completed.']]], 422);
         }
 
-        $rules = array_merge($this->activityValidationRules($job->job_type), [
+        $rules = array_merge($this->activityValidationRules($job->job_type, (bool) $job->parent_job_id), [
             'completion_photo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'signature'        => ['required', 'string', 'regex:#^data:image/png;base64,[A-Za-z0-9+/=]+$#', 'max:2000000'],
             'latitude'         => ['required', 'numeric', 'between:-90,90'],
@@ -399,8 +498,11 @@ class TechnicianJobController extends Controller
 
         $signaturePath = $this->saveSignature($signatureBytes);
 
+        // keep a check-out time an engineer already corrected manually
+        $checkOut = $job->times_adjusted_at && $job->check_out_time ? $job->check_out_time : $now;
+
         $data = $this->extractActivityFields($request, $job->job_type) + [
-            'check_out_time'   => $now,
+            'check_out_time'   => $checkOut,
             'check_out_lat'    => $request->input('latitude'),
             'check_out_lng'    => $request->input('longitude'),
             'completion_photo' => 'job-completions/' . $photoFilename,
@@ -409,9 +511,19 @@ class TechnicianJobController extends Controller
             'completed_at'     => $now,
         ];
 
+        // a helper may leave the cause blank — it follows the main job
+        if ($job->job_type === 'breakdown' && empty($data['breakdown_cause']) && $job->parent) {
+            $data['breakdown_cause'] = $job->parent->breakdown_cause;
+        }
+
         $job->update($data);
 
-        $this->recordAttendanceCheckOut(Auth::user(), $now);
+        // Breakdown / repair closure: elevator left Working or Shutdown
+        if (in_array($job->job_type, ['breakdown', 'repair'], true) && $job->unit && $job->unit_status_after) {
+            $job->unit->applyClosureStatus($job->unit_status_after, $job->shutdown_reason, $job);
+        }
+
+        $this->recordAttendanceCheckOut(Auth::user(), $checkOut);
 
         return response()->json([
             'success'  => true,
@@ -509,7 +621,7 @@ class TechnicianJobController extends Controller
         return $unit->identification_no . ($unit->unit_number ? ' (' . $unit->unit_number . ')' : '');
     }
 
-    private function activityValidationRules(string $type): array
+    private function activityValidationRules(string $type, bool $isHelper = false): array
     {
         $common = [
             'description'  => ['required', 'string', 'max:1000'],
@@ -519,12 +631,18 @@ class TechnicianJobController extends Controller
         ];
 
         if ($type === 'breakdown') {
-            $common['breakdown_cause'] = ['required', 'string', 'in:' . implode(',', self::BREAKDOWN_CAUSES)];
+            // a helper technician may leave the cause blank — it follows the main job
+            $common['breakdown_cause'] = [$isHelper ? 'nullable' : 'required', 'string', 'in:' . implode(',', self::BREAKDOWN_CAUSES)];
             $common['immediate_action_taken'] = ['nullable', 'string', 'max:1000'];
+            // Closure: elevator left Working or Shutdown — a shutdown needs a reason
+            $common['unit_status_after'] = ['required', 'in:working,shutdown'];
+            $common['shutdown_reason'] = ['nullable', 'required_if:unit_status_after,shutdown', 'string', 'max:500'];
         }
 
         if ($type === 'repair') {
             $common['warranty_contract'] = ['nullable', 'string', 'max:100'];
+            $common['unit_status_after'] = ['nullable', 'in:working,shutdown'];
+            $common['shutdown_reason'] = ['nullable', 'required_if:unit_status_after,shutdown', 'string', 'max:500'];
         }
 
         if ($type === 'casual_job') {
@@ -550,6 +668,12 @@ class TechnicianJobController extends Controller
 
         if ($type === 'repair') {
             $fields['warranty_contract'] = $request->input('warranty_contract');
+        }
+
+        if (in_array($type, ['breakdown', 'repair'], true)) {
+            $status = $request->input('unit_status_after');
+            $fields['unit_status_after'] = in_array($status, ['working', 'shutdown'], true) ? $status : null;
+            $fields['shutdown_reason'] = $status === 'shutdown' ? trim((string) $request->input('shutdown_reason')) : null;
         }
 
         if ($type === 'casual_job') {

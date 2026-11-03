@@ -7,4 +7,7 @@
 
 @vite([ 'resources/scss/icons.scss', 'resources/scss/style.scss'])
 
+{{-- App theme (sidebar, topbar, dark mode) — plain CSS, no build needed --}}
+<link rel="stylesheet" href="{{ asset('css/switch-theme.css') }}?v={{ @filemtime(public_path('css/switch-theme.css')) }}">
+
 @vite([ 'resources/js/config.js'])

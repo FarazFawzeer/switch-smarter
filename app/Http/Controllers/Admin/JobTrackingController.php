@@ -39,7 +39,10 @@ class JobTrackingController extends Controller
                 $request->input('to')
             );
         }
-        return view('admin.tracking.index', compact('jobs', 'technicians', 'summary', 'chartData'));
+        // who the current user may correct times for (null = everyone)
+        $adjustableIds = TimesheetAdjustmentController::adjustableTechnicianIds($request->user());
+
+        return view('admin.tracking.index', compact('jobs', 'technicians', 'summary', 'chartData', 'adjustableIds'));
     }
 
     /**
@@ -114,7 +117,7 @@ class JobTrackingController extends Controller
 
         $callback = function () use ($jobs) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['No', 'Technician', 'Project / Unit', 'Date Commenced', 'Check-in', 'Check-in Location', 'Check-out', 'Work Shift', 'Work Type', 'Normal Time', 'Overtime', 'HOT (Holiday)', 'Holiday', 'Supervisor Approval', 'Engineer Approval', 'Manager Approval', 'Status']);
+            fputcsv($handle, ['No', 'Technician', 'Project', 'Location', 'Unit No', 'Unit ID', 'Date Commenced', 'Check-in', 'Check-in Location', 'Check-out', 'Work Shift', 'Work Type', 'Normal Time', 'Overtime', 'HOT (Holiday)', 'Holiday', 'Supervisor Approval', 'Engineer Approval', 'Manager Approval', 'Status']);
 
             foreach ($jobs as $index => $job) {
                 $attendance = $this->matchingAttendance($job);
@@ -123,7 +126,10 @@ class JobTrackingController extends Controller
                 fputcsv($handle, [
                     $index + 1,
                     optional($job->technician)->name ?? '—',
-                    (optional($job->contract)->project_name ?? '—') . ' / ' . (optional($job->unit)->identification_no ?? '—'),
+                    optional($job->contract)->project_name ?? '—',
+                    optional($job->contract)->location ?? '—',
+                    optional($job->unit)->unit_number ?? '—',
+                    optional($job->unit)->identification_no ?? '—',
                     $job->check_in_time?->format('d M Y'),
                     $job->check_in_time?->format('h:i A'),
                     $job->check_in_lat && $job->check_in_lng ? $job->check_in_lat . ', ' . $job->check_in_lng : '—',
@@ -163,7 +169,7 @@ class JobTrackingController extends Controller
      */
     private function buildFilteredQuery(Request $request)
     {
-        $query = JobRecord::with(['technician:id,name,employee_id,shift_id', 'technician.shift', 'contract:id,project_name,location', 'unit:id,identification_no,unit_number'])
+        $query = JobRecord::with(['technician:id,name,employee_id,shift_id', 'technician.shift', 'contract:id,project_name,location', 'unit:id,identification_no,unit_number', 'adjustments.adjustedBy:id,name'])
             ->whereNotNull('check_in_time');
 
         if ($request->filled('technician_id')) {

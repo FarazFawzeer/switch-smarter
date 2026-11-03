@@ -40,6 +40,10 @@
                             <option value="">Select a project first</option>
                         </select>
                         <div class="form-text">Technicians are scoped to the project's route.</div>
+
+                        <label class="form-label mt-2">Additional Technicians <span class="text-muted">(optional)</span></label>
+                        <select id="additional_technician_ids" name="additional_technician_ids[]" class="form-select" multiple size="3" disabled></select>
+                        <div class="form-text">Hold Ctrl to pick more than one. Counted as ONE casual job — each technician gets their own timesheet.</div>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Customer <span class="text-muted">(optional)</span></label>
@@ -174,11 +178,23 @@
                         technicianSelect.innerHTML = '<option value="">No technician on this route</option>';
                         return;
                     }
+                    const extraSelect = document.getElementById('additional_technician_ids');
+                    extraSelect.innerHTML = '';
                     data.technicians.forEach(t => {
                         technicianSelect.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+                        extraSelect.add(new Option(t.name, t.id));
                     });
                     technicianSelect.disabled = false;
+                    extraSelect.disabled = data.technicians.length < 2;
                 });
+        });
+
+        // the main technician can't also be an "additional" one
+        technicianSelect.addEventListener('change', function() {
+            Array.from(document.getElementById('additional_technician_ids').options).forEach(opt => {
+                opt.disabled = opt.value === this.value;
+                if (opt.disabled) opt.selected = false;
+            });
         });
 
         poStatusSelect.addEventListener('change', function() {

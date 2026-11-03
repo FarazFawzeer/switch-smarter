@@ -64,6 +64,11 @@ class Contract extends Model
         return $this->hasMany(ElevatorUnit::class);
     }
 
+    public function jobs(): HasMany
+    {
+        return $this->hasMany(JobRecord::class);
+    }
+
     public function ppmJobs(): HasMany
     {
         return $this->hasMany(JobRecord::class)->where('job_type', 'ppm')->orderBy('scheduled_date');

@@ -44,13 +44,12 @@
             <input type="text" id="checkInAddress" class="form-control mb-2" readonly
                 placeholder="Detecting your location...">
             <p class="text-muted small mb-3">
-                <iconify-icon icon="solar:danger-triangle-outline" style="font-size:13px;"></iconify-icon>
+                <x-ui-icon name="alert" size="13" />
                 You must be within 200m of where you started this job to complete it.
             </p>
 
             <button id="startBtn" class="btn btn-primary w-100 py-3 fs-16 fw-bold">
-                <iconify-icon icon="solar:play-circle-bold"
-                    style="font-size:20px; vertical-align:-4px; margin-right:6px;"></iconify-icon>
+                <x-ui-icon name="play-circle" size="20" style="vertical-align:-4px; margin-right:6px" />
                 Start Work
             </button>
         </div>
@@ -58,7 +57,7 @@
     @elseif(!$job->check_out_time)
         {{-- STEP 2: In progress --}}
         <div class="alert alert-info d-flex align-items-center gap-2">
-            <iconify-icon icon="solar:clock-circle-outline" style="font-size:20px;"></iconify-icon>
+            <x-ui-icon name="clock" size="20" />
             Started at {{ $job->check_in_time->format('h:i A') }}
         </div>
 
@@ -79,8 +78,7 @@
                         placeholder="Detecting your location...">
 
                     <button type="submit" id="completeBtn" class="btn btn-success w-100 py-3 fs-16 fw-bold">
-                        <iconify-icon icon="solar:check-circle-bold"
-                            style="font-size:20px; vertical-align:-4px; margin-right:6px;"></iconify-icon>
+                        <x-ui-icon name="check-circle" size="20" style="vertical-align:-4px; margin-right:6px" />
                         Complete Job
                     </button>
                 </form>
@@ -91,7 +89,7 @@
         <div class="card">
             <div class="card-body">
                 <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
-                    <iconify-icon icon="solar:check-circle-bold" style="font-size:20px;"></iconify-icon>
+                    <x-ui-icon name="check-circle" size="20" />
                     Completed at {{ $job->check_out_time->format('h:i A, d M Y') }}
                 </div>
 
@@ -108,7 +106,7 @@
     @endif
 
     <a href="{{ route('technician.jobs.index') }}" class="btn btn-outline-secondary w-100 mt-2">
-        <iconify-icon icon="solar:arrow-left-outline"></iconify-icon> Back to My Jobs
+        <x-ui-icon name="arrow-left" /> Back to My Jobs
     </a>
 
     @push('scripts')
@@ -282,13 +280,13 @@
                             showError(Object.values(data.errors).flat().join('<br>'));
                             btn.disabled = false;
                             btn.innerHTML =
-                                '<iconify-icon icon="solar:check-circle-bold" style="font-size:20px; vertical-align:-4px; margin-right:6px;"></iconify-icon>Complete Job';
+                                '<x-ui-icon name="check-circle" size="20" style="vertical-align:-4px; margin-right:6px" />Complete Job';
                         }
                     } catch (err) {
                         showError('Something went wrong. Please try again.');
                         btn.disabled = false;
                         btn.innerHTML =
-                            '<iconify-icon icon="solar:check-circle-bold" style="font-size:20px; vertical-align:-4px; margin-right:6px;"></iconify-icon>Complete Job';
+                            '<x-ui-icon name="check-circle" size="20" style="vertical-align:-4px; margin-right:6px" />Complete Job';
                     }
                 });
             @endif

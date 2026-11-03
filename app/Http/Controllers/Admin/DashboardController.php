@@ -3,87 +3,246 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Technician\TechnicianJobController;
 use App\Models\Contract;
 use App\Models\ElevatorUnit;
+use App\Models\JobRecord;
+use App\Models\TechnicianAttendance;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
+/**
+ * Operations dashboard (Revision 7). Counts use MAIN jobs only, so a breakdown attended
+ * by several technicians is counted once. Engineers/Supervisors see their own contracts.
+ */
 class DashboardController extends Controller
 {
-    public function index()
+    private const ADMIN_ROLES = ['Manager', 'Super Admin', 'Admin'];
+
+    public function index(Request $request)
     {
         $user = Auth::user();
-        $isAdmin = in_array($user->type, ['Manager', 'Super Admin', 'Admin']);
+        $contractIds = $this->visibleContractIds($user);
 
-        $contractsQuery = Contract::query();
-        if (! $isAdmin) {
-            $contractsQuery->visibleTo($user);
-        }
+        [$monthStart, $monthEnd] = $this->selectedMonth($request);
+        $prevStart = $monthStart->copy()->subMonthNoOverflow()->startOfMonth();
+        $prevEnd = $prevStart->copy()->endOfMonth();
 
-        $totalContracts = (clone $contractsQuery)->count();
-        $activeContracts = (clone $contractsQuery)->where('status', 'active')->count();
-        $expiredContracts = (clone $contractsQuery)->where('status', 'expired')->count();
-        $cancelledContracts = (clone $contractsQuery)->where('status', 'cancelled')->count();
+        $jobs = fn () => JobRecord::primary()->whereIn('contract_id', $contractIds);
+        $units = fn () => ElevatorUnit::whereIn('contract_id', $contractIds);
 
-        $totalElevatorUnits = (clone $contractsQuery)->withCount('elevatorUnits')->get()->sum('elevator_units_count');
+        // ---------- KPI cards ----------
+        $projects = Contract::whereIn('id', $contractIds)->where('status', 'active');
+        $kpi = [
+            'projects'          => (clone $projects)->count(),
+            'projects_new'      => (clone $projects)->whereBetween('created_at', [$monthStart, $monthEnd])->count(),
+            'units'             => $units()->count(),
+            'units_new'         => $units()->whereBetween('created_at', [$monthStart, $monthEnd])->count(),
+            // Breakdown: recorded during the selected month
+            'breakdowns'        => $jobs()->where('job_type', 'breakdown')->whereBetween('scheduled_date', [$monthStart, $monthEnd])->count(),
+            'breakdowns_prev'   => $jobs()->where('job_type', 'breakdown')->whereBetween('scheduled_date', [$prevStart, $prevEnd])->count(),
+            // Shutdown: elevators shut down right now and still open
+            'shutdown'          => $units()->where('operational_status', 'shutdown')->count(),
+            // Casual jobs: pending / in progress / awaiting completion (open now)
+            'casual_open'       => $jobs()->where('job_type', 'casual_job')->whereIn('status', ['pending', 'in_progress', 'on_hold'])->count(),
+            // Repairs: completed during the selected month
+            'repairs_done'      => $jobs()->where('job_type', 'repair')->where('status', 'completed')->whereBetween('completed_at', [$monthStart, $monthEnd])->count(),
+            'repairs_done_prev' => $jobs()->where('job_type', 'repair')->where('status', 'completed')->whereBetween('completed_at', [$prevStart, $prevEnd])->count(),
+        ];
 
-        // Contracts expiring within the next 90 days (active only)
-        $expiringSoon = (clone $contractsQuery)
-            ->where('status', 'active')
-            ->whereBetween('contract_end_date', [Carbon::today(), Carbon::today()->addDays(2000)])
-            ->orderBy('contract_end_date')
-            ->with('engineer:id,name')
-            ->limit(5)
+        // ---------- Total units by equipment type ----------
+        $unitTypes = $units()->selectRaw("COALESCE(NULLIF(unit_type, ''), 'Other') as type, COUNT(*) as total")
+            ->groupBy('type')->orderByDesc('total')->pluck('total', 'type');
+
+        // ---------- Units by engineer ----------
+        $unitsByEngineer = ElevatorUnit::query()
+            ->join('contracts', 'contracts.id', '=', 'elevator_units.contract_id')
+            ->leftJoin('users', 'users.id', '=', 'contracts.assigned_engineer_id')
+            ->whereIn('contracts.id', $contractIds)
+            ->where('contracts.status', 'active')
+            ->groupBy('users.id', 'users.name', 'users.image_path')
+            ->selectRaw("users.id, COALESCE(users.name, 'Unassigned') as name, users.image_path, COUNT(*) as total")
+            ->orderByDesc('total')
+            ->limit(6)
             ->get();
 
-        // Most recently added contracts
-        $recentContracts = (clone $contractsQuery)
-            ->with('engineer:id,name')
-            ->withCount('elevatorUnits')
-            ->latest()
-            ->limit(5)
-            ->get();
+        // ---------- Breakdown summary (per day × cause) ----------
+        $breakdownSummary = $this->breakdownSummary($jobs, $monthStart, $monthEnd);
 
-        $visibleContractIds = (clone $contractsQuery)->pluck('id');
+        // ---------- Calendar: days with breakdowns ----------
+        $calendar = $this->calendarWeeks($monthStart, $breakdownSummary['per_day']);
 
-        $unitTypeBreakdown = ElevatorUnit::query()
-            ->whereIn('contract_id', $visibleContractIds)
-            ->selectRaw('unit_type, count(*) as total')
-            ->groupBy('unit_type')
-            ->pluck('total', 'unit_type');
+        $live = $this->liveActivity($contractIds);
 
-        // Defensive debug — remove after confirming this works
-        \Log::info('Dashboard unit type debug', [
-            'visible_contract_ids' => $visibleContractIds->toArray(),
-            'unit_type_breakdown'  => $unitTypeBreakdown->toArray(),
-        ]);
+        $greeting = match (true) {
+            now()->hour < 12 => 'Good Morning',
+            now()->hour < 17 => 'Good Afternoon',
+            default          => 'Good Evening',
+        };
 
-        // Contracts grouped by engineer (admin view only — not meaningful for a single engineer's own view)
-        $contractsByEngineer = collect();
-        if ($isAdmin) {
-            $contractsByEngineer = Contract::selectRaw('assigned_engineer_id, count(*) as total')
-                ->whereNotNull('assigned_engineer_id')
-                ->groupBy('assigned_engineer_id')
-                ->with('engineer:id,name')
-                ->get()
-                ->map(fn($row) => [
-                    'name'  => optional($row->engineer)->name ?? 'Unassigned',
-                    'total' => $row->total,
-                ]);
-        }
+        $monthOptions = collect(range(0, 11))->map(fn ($i) => now()->startOfMonth()->subMonthsNoOverflow($i))
+            ->mapWithKeys(fn ($d) => [$d->format('Y-m') => $d->format('F Y')]);
 
         return view('index', compact(
-            'totalContracts',
-            'activeContracts',
-            'expiredContracts',
-            'cancelledContracts',
-            'totalElevatorUnits',
-            'expiringSoon',
-            'recentContracts',
-            'unitTypeBreakdown',
-            'contractsByEngineer',
-            'isAdmin'
+            'kpi', 'unitTypes', 'unitsByEngineer', 'breakdownSummary', 'calendar', 'live',
+            'greeting', 'monthStart', 'monthOptions', 'user'
         ));
+    }
+
+    /** Live Maintenance Activity block (refreshed every minute by the page). */
+    public function live()
+    {
+        $live = $this->liveActivity($this->visibleContractIds(Auth::user()));
+
+        return view('dashboard._live', compact('live'));
+    }
+
+    /** Daily Breakdown Details: every breakdown on one day, with its cause. */
+    public function breakdownsOnDay(Request $request)
+    {
+        $request->validate(['date' => ['required', 'date']]);
+        $date = Carbon::parse($request->input('date'));
+
+        $rows = JobRecord::primary()
+            ->whereIn('contract_id', $this->visibleContractIds(Auth::user()))
+            ->where('job_type', 'breakdown')
+            ->whereDate('scheduled_date', $date)
+            ->with(['unit:id,identification_no,unit_number,operational_status', 'contract:id,project_name,location', 'technician:id,name', 'helpers.technician:id,name'])
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($job) => [
+                'code'        => $job->job_code,
+                'unit'        => optional($job->unit)->identification_no . (optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : ''),
+                'project'     => optional($job->contract)->project_name,
+                'location'    => optional($job->contract)->location,
+                'cause'       => $job->breakdown_cause ?: $job->helpers->pluck('breakdown_cause')->filter()->first() ?: 'Not recorded yet',
+                'technicians' => collect([optional($job->technician)->name])->concat($job->helpers->pluck('technician.name'))->filter()->implode(', '),
+                'status'      => ucfirst(str_replace('_', ' ', $job->status)),
+                'unit_status' => $job->unit_status_after ? ucfirst($job->unit_status_after) : (optional($job->unit)->operational_status === 'shutdown' ? 'Shutdown' : null),
+                'url'         => route('admin.job-types.show', $job->id),
+            ]);
+
+        return response()->json([
+            'date'  => $date->format('l, d M Y'),
+            'count' => $rows->count(),
+            'rows'  => $rows,
+        ]);
+    }
+
+    // ================= Helpers =================
+
+    private function visibleContractIds(User $user): Collection
+    {
+        $query = Contract::query();
+        if (! in_array($user->type, self::ADMIN_ROLES, true)) {
+            $query->visibleTo($user);
+        }
+
+        return $query->pluck('id');
+    }
+
+    private function selectedMonth(Request $request): array
+    {
+        $month = $request->get('month');
+        $start = ($month && preg_match('/^\d{4}-\d{2}$/', $month))
+            ? Carbon::createFromFormat('Y-m-d', $month . '-01')->startOfMonth()
+            : now()->startOfMonth();
+
+        return [$start, $start->copy()->endOfMonth()];
+    }
+
+    private function breakdownSummary(callable $jobs, Carbon $monthStart, Carbon $monthEnd): array
+    {
+        $rows = $jobs()->where('job_type', 'breakdown')
+            ->whereBetween('scheduled_date', [$monthStart, $monthEnd])
+            ->get(['id', 'scheduled_date', 'breakdown_cause']);
+
+        $causes = collect(TechnicianJobController::BREAKDOWN_CAUSES)->push('Not recorded');
+        $days = range(1, $monthEnd->day);
+
+        $series = $causes->map(function ($cause) use ($rows, $days) {
+            $data = array_map(fn ($d) => $rows->filter(fn ($r) => $r->scheduled_date->day === $d
+                && (($r->breakdown_cause ?: 'Not recorded') === $cause))->count(), $days);
+
+            return ['name' => $cause, 'data' => $data];
+        })->filter(fn ($s) => array_sum($s['data']) > 0)->values();
+
+        return [
+            'labels'  => array_map(fn ($d) => $monthStart->copy()->day($d)->format('M j'), $days),
+            'dates'   => array_map(fn ($d) => $monthStart->copy()->day($d)->toDateString(), $days),
+            'series'  => $series,
+            'total'   => $rows->count(),
+            'per_day' => $rows->groupBy(fn ($r) => $r->scheduled_date->day)->map->count(),
+        ];
+    }
+
+    private function calendarWeeks(Carbon $monthStart, Collection $perDay): array
+    {
+        $weeks = [];
+        $cursor = $monthStart->copy()->startOfWeek(Carbon::MONDAY);
+        $end = $monthStart->copy()->endOfMonth()->endOfWeek(Carbon::SUNDAY);
+
+        while ($cursor->lte($end)) {
+            $week = [];
+            for ($i = 0; $i < 7; $i++) {
+                $inMonth = $cursor->month === $monthStart->month;
+                $week[] = [
+                    'date'       => $cursor->copy(),
+                    'inMonth'    => $inMonth,
+                    'isToday'    => $cursor->isToday(),
+                    'breakdowns' => $inMonth ? (int) ($perDay[$cursor->day] ?? 0) : 0,
+                ];
+                $cursor->addDay();
+            }
+            $weeks[] = $week;
+        }
+
+        return $weeks;
+    }
+
+    /**
+     * Today's activity: active technicians (a job running now), idle/travelling technicians
+     * (checked in today but not on a job right now), counts by job type and the latest jobs.
+     */
+    private function liveActivity(Collection $contractIds): array
+    {
+        $today = now()->startOfDay();
+
+        // only work started TODAY — an old job someone forgot to close (days ago) is not "live"
+        $todayJobs = JobRecord::whereIn('contract_id', $contractIds)
+            ->where('check_in_time', '>=', $today)
+            ->with(['unit:id,identification_no,unit_number', 'contract:id,project_name,location', 'technician:id,name,image_path', 'parent:id,job_code'])
+            ->orderByRaw("FIELD(status, 'in_progress', 'on_hold', 'pending', 'completed')")
+            ->orderByDesc('check_in_time')
+            ->get();
+
+        $running = $todayJobs->filter(fn ($j) => $j->status === 'in_progress' && ! $j->check_out_time);
+        $activeTechIds = $running->pluck('assigned_technician_id')->filter()->unique();
+
+        $checkedInToday = TechnicianAttendance::whereDate('work_date', $today)
+            ->whereNotNull('check_in_time')
+            ->pluck('technician_id')
+            ->unique();
+
+        $idleTechIds = $checkedInToday->diff($activeTechIds);
+
+        // counted once per main job (a team job started by 2 technicians = 1)
+        $byType = $todayJobs->unique(fn ($j) => $j->parent_job_id ?? $j->id)->countBy('job_type');
+
+        return [
+            'active'     => $activeTechIds->count(),
+            'idle'       => $idleTechIds->count(),
+            'by_type'    => [
+                'ppm'        => $byType['ppm'] ?? 0,
+                'breakdown'  => $byType['breakdown'] ?? 0,
+                'repair'     => $byType['repair'] ?? 0,
+                'casual_job' => $byType['casual_job'] ?? 0,
+            ],
+            'jobs'       => $todayJobs->take(8),
+            'updated_at' => now(),
+        ];
     }
 }

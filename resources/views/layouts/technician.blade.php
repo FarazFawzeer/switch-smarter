@@ -7,7 +7,7 @@
     @include('layouts.partials/head-css')
 </head>
 
-<body>
+<body class="technician-app">
 
     <div class="app-wrapper">
 

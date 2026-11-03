@@ -46,7 +46,7 @@
     <form action="{{ route('logout') }}" method="POST">
         @csrf
         <button type="submit" class="btn btn-outline-danger w-100">
-            <iconify-icon icon="solar:logout-3-outline"></iconify-icon> Logout
+            <x-ui-icon name="logout" /> Logout
         </button>
     </form>
 @endsection

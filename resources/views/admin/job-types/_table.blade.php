@@ -205,9 +205,12 @@
                     <th>Job No</th>
                     <th>Project</th>
                     <th>Unit</th>
+                    @if($jobType === 'breakdown')
+                        <th>Cause of Breakdown</th>
+                    @endif
                     <th>Route</th>
                     <th>Engineer</th>
-                    <th>Technician</th>
+                    <th>Technician(s)</th>
                     <th>Reported Date</th>
                     @if($jobType === 'casual_job')
                         <th>Cost</th>
@@ -249,10 +252,30 @@
                             @if(optional($job->unit)->unit_number)
                                 <span class="text-muted fw-normal">({{ $job->unit->unit_number }})</span>
                             @endif
+                            @if(optional($job->unit)->operational_status === 'shutdown')
+                                <div><span class="badge bg-danger">SHUTDOWN</span></div>
+                            @endif
                         </td>
+                        @if($jobType === 'breakdown')
+                            @php $cause = $job->breakdown_cause ?: $job->helpers->pluck('breakdown_cause')->filter()->first(); @endphp
+                            <td>
+                                @if($cause)
+                                    <span class="fw-semibold">{{ $cause }}</span>
+                                @else
+                                    <span class="text-muted">Not recorded yet</span>
+                                @endif
+                            </td>
+                        @endif
                         <td>{{ optional(optional($job->contract)->route)->route_no ?? '—' }}</td>
                         <td>{{ optional(optional($job->contract)->engineer)->name ?? '—' }}</td>
-                        <td>{{ optional($job->technician)->name ?? 'Unassigned' }}</td>
+                        <td>
+                            {{ optional($job->technician)->name ?? 'Unassigned' }}
+                            @if($job->helpers->isNotEmpty())
+                                <div class="text-muted" style="font-size:11px;">
+                                    + {{ $job->helpers->pluck('technician.name')->filter()->implode(', ') }}
+                                </div>
+                            @endif
+                        </td>
                         <td>{{ $job->scheduled_date->format('d M Y') }}</td>
                         @if($jobType === 'casual_job')
                             <td>{{ $job->cost ? number_format($job->cost, 2) : '—' }}</td>
@@ -269,7 +292,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $jobType === 'casual_job' ? 11 : 10 }}" class="text-center text-muted py-5">
+                        <td colspan="{{ $jobType === 'repair' ? 10 : 11 }}" class="text-center text-muted py-5">
                             <iconify-icon icon="solar:clipboard-list-outline" style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                             <p class="mb-0 mt-2">
                                 @if($searchAllMonths)

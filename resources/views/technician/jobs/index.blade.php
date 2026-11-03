@@ -53,7 +53,7 @@
         border-radius: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
     }
     .th-group-head:first-of-type { margin-top: 4px; }
-    .th-group-head iconify-icon { font-size: 16px; }
+    .th-group-head .ui-icon { width: 16px; height: 16px; }
     .th-group-count { margin-left: auto; background: #fff; border-radius: 10px; padding: 0 8px; font-size: 11px; }
     .th-group-ongoing { background: rgba(46,134,222,0.10); color: #2E86DE; }
     .th-group-hold { background: rgba(135,146,162,0.14); color: #56606f; }
@@ -120,17 +120,17 @@
 
     @php
         $typeColorMap = ['ppm' => '#2E9E5B', 'casual_job' => '#9B59B6', 'repair' => '#F0730A', 'breakdown' => '#D64545'];
-        $typeIconMap = ['ppm' => 'solar:calendar-mark-bold', 'casual_job' => 'solar:case-round-bold', 'repair' => 'mdi:wrench', 'breakdown' => 'solar:danger-triangle-bold'];
+        $typeIconMap = ['ppm' => 'calendar', 'casual_job' => 'briefcase', 'repair' => 'wrench', 'breakdown' => 'alert'];
         $typeLabelMap = ['ppm' => 'PPM', 'casual_job' => 'Casual Job', 'repair' => 'Repair', 'breakdown' => 'Breakdown'];
     @endphp
 
     @php
         // Today's jobs grouped by work status: what's in hand first, finished work last
         $statusGroups = [
-            'in_progress' => ['Ongoing', 'ongoing', 'solar:play-circle-bold'],
-            'on_hold'     => ['On Hold', 'hold', 'solar:pause-circle-bold'],
-            'pending'     => ['Not Started', 'todo', 'solar:clock-circle-bold'],
-            'completed'   => ['Completed', 'done', 'solar:check-circle-bold'],
+            'in_progress' => ['Ongoing', 'ongoing', 'play-circle'],
+            'on_hold'     => ['On Hold', 'hold', 'pause-circle'],
+            'pending'     => ['Not Started', 'todo', 'clock'],
+            'completed'   => ['Completed', 'done', 'check-circle'],
         ];
         $grouped = $todaysSchedule->groupBy(fn ($job) => array_key_exists($job->status, $statusGroups) ? $job->status : 'pending');
     @endphp
@@ -143,7 +143,7 @@
         @continue(! $grouped->has($statusKey))
 
         <div class="th-group-head th-group-{{ $statusClass }}">
-            <iconify-icon icon="{{ $groupIcon }}"></iconify-icon>
+            <x-ui-icon :name="$groupIcon" size="16" stroke="2.2" />
             {{ $groupLabel }}
             <span class="th-group-count">{{ $grouped[$statusKey]->count() }}</span>
         </div>
@@ -151,7 +151,7 @@
         @foreach($grouped[$statusKey] as $job)
             <a href="{{ route('technician.activities.show', $job->id) }}" class="th-schedule-item {{ $statusKey === 'completed' ? 'is-done' : '' }}">
                 <div class="th-schedule-icon" style="background:{{ $typeColorMap[$job->job_type] ?? '#8792a2' }};">
-                    <iconify-icon icon="{{ $typeIconMap[$job->job_type] ?? 'solar:clipboard-list-outline' }}"></iconify-icon>
+                    <x-ui-icon :name="$typeIconMap[$job->job_type] ?? 'clipboard'" size="20" stroke="2" />
                 </div>
                 <div>
                     <div class="title">
@@ -179,7 +179,7 @@
 </div>
 
 <a href="{{ route('technician.activities.select') }}" class="th-fab" aria-label="New Activity">
-    <iconify-icon icon="solar:add-circle-bold"></iconify-icon>
+    <x-ui-icon name="plus" />
 </a>
 
 @endsection

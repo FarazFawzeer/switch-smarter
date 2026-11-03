@@ -290,6 +290,7 @@
                                                 <th>OT</th>
                                                 <th>HOT</th>
                                                 <th>Status</th>
+                                                <th></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -315,7 +316,21 @@
                                                     <td>{{ $dayJob->hours && ! $dayJob->hours['holiday'] ? number_format($dayJob->hours['normal'], 2) . 'h' : '—' }}</td>
                                                     <td>{{ $dayJob->hours && $dayJob->hours['ot'] > 0 ? number_format($dayJob->hours['ot'], 2) . 'h' : '—' }}</td>
                                                     <td>{{ $dayJob->hours && $dayJob->hours['hot'] > 0 ? number_format($dayJob->hours['hot'], 2) . 'h' : '—' }}</td>
-                                                    <td>{{ ucfirst(str_replace('_', ' ', $dayJob->status)) }}</td>
+                                                    <td>
+                                                        {{ ucfirst(str_replace('_', ' ', $dayJob->status)) }}
+                                                        @if($dayJob->times_adjusted_at)
+                                                            <span class="badge" style="background:rgba(240,162,2,0.15); color:#B57900;">Adjusted</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="text-end">
+                                                        @if(is_null($adjustableIds) || in_array($dayJob->assigned_technician_id, $adjustableIds))
+                                                            <button type="button" class="btn btn-sm btn-outline-warning py-0 adjust-time-btn"
+                                                                data-url="{{ route('admin.tracking.adjust', $dayJob->id) }}"
+                                                                data-in="{{ $dayJob->check_in_time->format('Y-m-d\TH:i') }}"
+                                                                data-out="{{ $dayJob->check_out_time?->format('Y-m-d\TH:i') }}"
+                                                                data-who="{{ optional($record->technician)->name }} — {{ optional($dayJob->unit)->identification_no }}">Adjust</button>
+                                                        @endif
+                                                    </td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -476,4 +491,5 @@
             });
         });
     </script>
+    @include('admin.partials.timesheet-adjust-script')
 @endsection

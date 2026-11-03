@@ -21,6 +21,10 @@ use App\Http\Controllers\Admin\TimesheetApprovalController;
 use App\Http\Controllers\Admin\MonthlyMaintenanceController;
 use App\Http\Controllers\Admin\AdminJobTypeController;
 use App\Http\Controllers\Admin\HolidayController;
+use App\Http\Controllers\Admin\LeaveRequestController;
+use App\Http\Controllers\Admin\ShutdownUnitController;
+use App\Http\Controllers\Admin\TimesheetAdjustmentController;
+use App\Http\Controllers\Technician\TechnicianLeaveController;
 
 require __DIR__ . '/auth.php';
 
@@ -102,6 +106,25 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
         Route::get('/', [AttendanceController::class, 'index'])->name('index');
     });
 
+    // Manual Timesheet Adjustment (engineers for their team; admins for all)
+    Route::post('tracking/{job}/adjust', [TimesheetAdjustmentController::class, 'store'])->name('tracking.adjust');
+
+    // Elevators currently shut down (priority list)
+    Route::get('shutdown-units', [ShutdownUnitController::class, 'index'])->name('shutdown-units.index');
+    Route::post('shutdown-units/{unit}/mark-working', [ShutdownUnitController::class, 'markWorking'])->name('shutdown-units.mark-working');
+
+    // Team jobs: add another technician to a breakdown / repair / casual job
+    Route::post('job-types/{job}/team', [AdminJobTypeController::class, 'addTechnician'])->name('job-types.add-technician');
+
+    // Technician leave requests → supervisor approval
+    Route::get('leave-requests', [LeaveRequestController::class, 'index'])->name('leave-requests.index');
+    Route::post('leave-requests/{leave}/approve', [LeaveRequestController::class, 'approve'])->name('leave-requests.approve');
+    Route::post('leave-requests/{leave}/reject', [LeaveRequestController::class, 'reject'])->name('leave-requests.reject');
+
+    // Dashboard live widgets
+    Route::get('dashboard/live', [DashboardController::class, 'live'])->name('dashboard.live');
+    Route::get('dashboard/breakdowns', [DashboardController::class, 'breakdownsOnDay'])->name('dashboard.breakdowns');
+
     Route::prefix('holidays')->name('holidays.')->middleware('role:Super Admin,Admin,Manager')->group(function () {
         Route::get('/', [HolidayController::class, 'index'])->name('index');
         Route::post('/', [HolidayController::class, 'store'])->name('store');
@@ -142,6 +165,10 @@ Route::prefix('technician')->name('technician.')->middleware(['auth', 'only.tech
     Route::get('/jobs-browse', [TechnicianJobController::class, 'jobsPage'])->name('jobs.browse');
     Route::get('/schedule', [TechnicianJobController::class, 'schedulePage'])->name('schedule');
     Route::get('/profile', [TechnicianJobController::class, 'profilePage'])->name('profile');
+
+    Route::get('/leave', [TechnicianLeaveController::class, 'index'])->name('leave.index');
+    Route::post('/leave', [TechnicianLeaveController::class, 'store'])->name('leave.store');
+    Route::post('/leave/{leave}/cancel', [TechnicianLeaveController::class, 'cancel'])->name('leave.cancel');
 });
 
 Route::group(['prefix' => '/', 'middleware' => ['auth', 'not.technician']], function () {

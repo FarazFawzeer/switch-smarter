@@ -76,6 +76,10 @@
             color: #F0A202;
         }
 
+        .ts-project-location { font-size: 11px; color: #8792a2; }
+        .ts-unit-id { font-weight: 700; color: #2E5AAC; }
+        .ts-adjusted { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: rgba(240,162,2,0.15); color: #B57900; cursor: help; }
+
         .ts-location-link {
             color: #2E5AAC;
             text-decoration: none;
@@ -231,7 +235,9 @@
                     <tr>
                         <th>No</th>
                         <th>Technician</th>
-                        <th>Project / Unit</th>
+                        <th>Project</th>
+                        <th>Unit No</th>
+                        <th>Unit ID</th>
                         <th>Date Commenced</th>
                         <th>Check-in</th>
                         <th>Check-in Location</th>
@@ -282,11 +288,17 @@
                                     class="text-dark text-decoration-none fw-semibold">
                                     {{ optional($job->contract)->project_name ?? '—' }}
                                 </a>
-                                <div class="text-muted" style="font-size:11px;">
-                                    {{ optional($job->unit)->identification_no ?? '—' }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }}</div>
+                                <div class="ts-project-location">{{ optional($job->contract)->location ?? '' }}</div>
                             </td>
+                            <td class="fw-semibold">{{ optional($job->unit)->unit_number ?? '—' }}</td>
+                            <td class="ts-unit-id">{{ optional($job->unit)->identification_no ?? '—' }}</td>
                             <td>{{ $job->check_in_time->format('d M Y') }}</td>
-                            <td>{{ $job->check_in_time->format('h:i A') }}</td>
+                            <td>
+                                {{ $job->check_in_time->format('h:i A') }}
+                                @if ($job->times_adjusted_at)
+                                    <div><span class="ts-adjusted" title="{{ optional($job->adjustments->first())->reason }} — by {{ optional(optional($job->adjustments->first())->adjustedBy)->name }}">Adjusted</span></div>
+                                @endif
+                            </td>
                             <td>
                                 @if ($job->check_in_lat && $job->check_in_lng)
                                     <a href="https://www.google.com/maps?q={{ $job->check_in_lat }},{{ $job->check_in_lng }}"
@@ -358,16 +370,25 @@
                             <td><span class="ts-pill"
                                     style="background:{{ $statusColor }};">{{ ucfirst(str_replace('_', ' ', $job->status)) }}</span>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center text-nowrap">
                                 <a href="{{ route('admin.tracking.show', $job->id) }}"
                                     class="btn btn-sm btn-outline-primary">
                                     <iconify-icon icon="solar:eye-outline" style="font-size:14px;"></iconify-icon> View
                                 </a>
+                                @if (is_null($adjustableIds) || in_array($job->assigned_technician_id, $adjustableIds))
+                                    <button type="button" class="btn btn-sm btn-outline-warning adjust-time-btn"
+                                        data-url="{{ route('admin.tracking.adjust', $job->id) }}"
+                                        data-in="{{ $job->check_in_time->format('Y-m-d\TH:i') }}"
+                                        data-out="{{ $job->check_out_time?->format('Y-m-d\TH:i') }}"
+                                        data-who="{{ optional($job->technician)->name }} — {{ optional($job->unit)->identification_no }}">
+                                        <iconify-icon icon="solar:clock-circle-outline" style="font-size:14px;"></iconify-icon> Adjust
+                                    </button>
+                                @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="17" class="text-center text-muted py-5">
+                            <td colspan="19" class="text-center text-muted py-5">
                                 <iconify-icon icon="solar:clock-circle-outline"
                                     style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                                 <p class="mb-0 mt-2">No timesheet activity found for these filters.</p>
@@ -398,6 +419,8 @@
             }, 600);
         });
     </script>
+
+    @include('admin.partials.timesheet-adjust-script')
 
     @if ($chartData)
         <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>

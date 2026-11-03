@@ -53,6 +53,10 @@ class JobRecord extends Model
         'material_status',
         'site_status',
         'start_photo',
+        'parent_job_id',
+        'unit_status_after',
+        'shutdown_reason',
+        'times_adjusted_at',
         
     ];
 
@@ -64,6 +68,7 @@ class JobRecord extends Model
         'parts_used'     => 'array',
         'quotation_date'   => 'date',
         'po_received_date' => 'date',
+        'times_adjusted_at' => 'datetime',
     ];
 
     public function site(): BelongsTo
@@ -166,14 +171,55 @@ class JobRecord extends Model
         ];
     }
 
+    /**
+     * Next job number for the type and year, e.g. BD-2026-00007. Based on the highest
+     * number already issued (not a row count), so deleted jobs or helper rows can never
+     * cause a repeat — job_code is unique in the database.
+     */
     public static function generateJobCode(string $type): string
     {
         $prefixMap = ['ppm' => 'PPM', 'repair' => 'RP', 'breakdown' => 'BD', 'casual_job' => 'CJ'];
         $prefix = $prefixMap[$type] ?? 'JB';
         $year = now()->year;
+        $stem = "{$prefix}-{$year}-";
 
-        $countThisYear = static::where('job_type', $type)->whereYear('created_at', $year)->count() + 1;
+        $last = static::where('job_code', 'like', $stem . '%')
+            ->orderByRaw('CAST(SUBSTRING(job_code, ?) AS UNSIGNED) DESC', [strlen($stem) + 1])
+            ->value('job_code');
 
-        return sprintf('%s-%d-%05d', $prefix, $year, $countThisYear);
+        $next = $last ? ((int) substr($last, strlen($stem))) + 1 : 1;
+
+        return sprintf('%s%05d', $stem, $next);
+    }
+
+    // ================= Team jobs =================
+
+    /** The main job this row helps on (null = this IS the main job). */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_job_id');
+    }
+
+    /** Extra technicians' rows on this job — each has its own times / timesheet. */
+    public function helpers(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_job_id');
+    }
+
+    /** Only main jobs — use for counting, so a job attended by 3 technicians counts once. */
+    public function scopePrimary(Builder $query): Builder
+    {
+        return $query->whereNull('parent_job_id');
+    }
+
+    /** Job number to show: helpers carry their main job's number. */
+    public function displayCode(): ?string
+    {
+        return $this->job_code ?? optional($this->parent)->job_code;
+    }
+
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(TimesheetAdjustment::class, 'job_record_id')->latest('id');
     }
 }

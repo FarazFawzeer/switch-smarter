@@ -5,7 +5,7 @@
 
     <style>
         .find-search-box { position: relative; margin-bottom: 16px; }
-        .find-search-box iconify-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #8792a2; font-size: 22px; }
+        .find-search-box .ui-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #8792a2; width: 22px; height: 22px; }
         .find-search-box input {
             padding-left: 44px; height: 56px; font-size: 17px; border-radius: 14px;
         }
@@ -19,13 +19,13 @@
     <p class="text-muted small mb-3">Type the unit ID printed on the elevator to jump straight to that job.</p>
 
     <div class="find-search-box">
-        <iconify-icon icon="solar:magnifer-outline"></iconify-icon>
+        <x-ui-icon name="search" />
         <input type="text" id="findUnitInput" class="form-control" placeholder="Enter unit ID..." autofocus>
     </div>
 
     <div id="findResultsContainer">
         <div class="find-empty-state">
-            <iconify-icon icon="solar:qr-code-outline" style="font-size: 44px; opacity: 0.35;"></iconify-icon>
+            <x-ui-icon name="search" size="44" style="opacity: 0.35" />
             <p class="mt-2 mb-0">Start typing to find your job</p>
         </div>
     </div>
@@ -39,7 +39,7 @@
         function renderEmptyState(message) {
             resultsContainer.innerHTML = `
                 <div class="find-empty-state">
-                    <iconify-icon icon="solar:qr-code-outline" style="font-size: 44px; opacity: 0.35;"></iconify-icon>
+                    <x-ui-icon name="search" size="44" style="opacity: 0.35" />
                     <p class="mt-2 mb-0">${message}</p>
                 </div>`;
         }

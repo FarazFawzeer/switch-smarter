@@ -17,26 +17,36 @@
         .parts-row { display:flex; gap:8px; margin-bottom:8px; }
         .attach-row { display: flex; gap: 8px; }
         .attach-btn { flex:1; text-align:center; padding: 14px 8px; border: 1px dashed #cfd4db; border-radius: 10px; color:#56606f; cursor:pointer; background:#fafbfd; }
-        .attach-btn iconify-icon { display:block; font-size:22px; margin-bottom:4px; }
+        .attach-btn .ui-icon { display:block; width: 22px; height: 22px; margin-bottom:4px; }
         #sigPad { border: 1px solid #e7e9ee; border-radius: 8px; width: 100%; touch-action: none; background:#fff; }
         .act-footer-btns { position: fixed; bottom: 66px; left: 0; right: 0; background:#fff; padding: 10px 16px; box-shadow: 0 -2px 10px rgba(15,42,67,0.08); display:flex; gap:8px; z-index: 900; }
         .start-photo-btn {
             display: block; text-align: center; padding: 40px 16px; border: 2px dashed {{ $color }}; border-radius: 14px;
             color: {{ $color }}; cursor: pointer; background: {{ $color }}0D;
         }
-        .start-photo-btn iconify-icon { font-size: 40px; display: block; margin-bottom: 8px; }
+        .start-photo-btn .ui-icon { width: 40px; height: 40px; display: block; margin-bottom: 8px; }
         .location-box {
             background: #F5F7FA; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #56606f;
             display: flex; align-items: flex-start; gap: 6px; margin-bottom: 12px;
         }
-        .location-box iconify-icon { font-size: 15px; color: {{ $color }}; flex-shrink: 0; margin-top: 1px; }
+        .location-box .ui-icon { width: 15px; height: 15px; color: {{ $color }}; flex-shrink: 0; margin-top: 1px; }
         .readonly-field { background: #F5F7FA !important; color: #56606f; }
+        .status-choice { display: flex; gap: 8px; margin-bottom: 12px; }
+        .status-choice label {
+            flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 8px; border-radius: 10px; border: 2px solid #e7e9ee;
+            font-weight: 700; font-size: 14px; color: #56606f; cursor: pointer; background: #fff;
+        }
+        .status-choice input { display: none; }
+        .status-choice label:has(input[value="working"]:checked) { border-color: #2E9E5B; background: rgba(46,158,91,0.08); color: #2E9E5B; }
+        .status-choice label:has(input[value="shutdown"]:checked) { border-color: #D64545; background: rgba(214,69,69,0.08); color: #D64545; }
+        .shutdown-banner { background: rgba(214,69,69,0.10); color: #B23030; border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; gap: 6px; }
+        .team-line { background: #F5F7FA; border-radius: 10px; padding: 8px 12px; font-size: 12.5px; color: #56606f; margin-bottom: 12px; }
         .backoffice-note { font-size: 11px; color: #8792a2; display: flex; align-items: center; gap: 4px; margin-top: -8px; margin-bottom: 12px; }
     </style>
 
     <div class="act-header">
         <div class="d-flex align-items-center gap-2">
-            <a href="{{ route('technician.jobs.index') }}"><iconify-icon icon="solar:arrow-left-outline"></iconify-icon></a>
+            <a href="{{ route('technician.jobs.index') }}"><x-ui-icon name="arrow-left" /></a>
             <span class="fw-bold">{{ $label }}</span>
         </div>
         @if($job->status === 'on_hold')
@@ -49,30 +59,45 @@
     <div class="act-body">
         <div id="message"></div>
 
+        @if(optional($job->unit)->isShutdown())
+            <div class="shutdown-banner">
+                <x-ui-icon name="alert" size="16" />
+                <span>This elevator is currently SHUT DOWN{{ $job->unit->shutdown_since ? ' since ' . $job->unit->shutdown_since->format('d M Y') : '' }}{{ $job->unit->shutdown_reason ? ' — ' . $job->unit->shutdown_reason : '' }}</span>
+            </div>
+        @endif
+
+        @if(isset($team) && $team->count() > 1)
+            <div class="team-line">
+                <x-ui-icon name="users" />
+                <strong>Team on this job:</strong> {{ $team->implode(', ') }}
+                <div class="small text-muted">Counted as one job — each technician's own times go to their own timesheet.</div>
+            </div>
+        @endif
+
         <p class="act-field-label mb-1">Date &amp; Time (Auto-captured)</p>
         <p class="act-info-value mb-3">{{ $job->check_in_time?->format('d M Y | h:i A') ?? 'Not started yet' }}</p>
 
         @if($job->check_in_time && $job->check_in_lat)
             <div class="location-box" id="startLocationBox" data-lat="{{ $job->check_in_lat }}" data-lng="{{ $job->check_in_lng }}">
-                <iconify-icon icon="solar:map-point-outline"></iconify-icon>
+                <x-ui-icon name="map-pin" />
                 <span>Started from: <span id="startLocationText">Loading address...</span></span>
             </div>
         @endif
 
         @if($job->check_out_time && $job->check_out_lat)
             <div class="location-box" id="endLocationBox" data-lat="{{ $job->check_out_lat }}" data-lng="{{ $job->check_out_lng }}">
-                <iconify-icon icon="solar:map-point-outline"></iconify-icon>
+                <x-ui-icon name="map-pin" />
                 <span>Completed from: <span id="endLocationText">Loading address...</span></span>
             </div>
         @endif
 
         <p class="fw-bold mb-2" style="color:{{ $color }};">Job Information</p>
 
-        @if($job->job_code)
+        @if($job->displayCode())
             <div class="row mb-2">
                 <div class="col-6">
                     <p class="act-field-label mb-0">Job ID</p>
-                    <p class="act-info-value mb-0">{{ $job->job_code }}</p>
+                    <p class="act-info-value mb-0">{{ $job->displayCode() }}</p>
                 </div>
                 <div class="col-6">
                     <p class="act-field-label mb-0">Unit ID</p>
@@ -111,7 +136,7 @@
                 </div>
             </div>
             <p class="text-muted small mb-3">
-                <iconify-icon icon="solar:lock-keyhole-outline"></iconify-icon> Customer and cost are set by the office and cannot be changed here.
+                <x-ui-icon name="lock" /> Customer and cost are set by the office and cannot be changed here.
             </p>
         @endif
 
@@ -139,6 +164,16 @@
                 <p class="mb-3">{{ $job->immediate_action_taken ?? '—' }}</p>
             @endif
 
+            @if($job->unit_status_after)
+                <p class="act-field-label mb-0">Elevator Status at Closure</p>
+                <p class="mb-3 fw-bold" style="color: {{ $job->unit_status_after === 'shutdown' ? '#D64545' : '#2E9E5B' }};">
+                    {{ $job->unit_status_after === 'shutdown' ? 'Shutdown' : 'Working' }}
+                    @if($job->shutdown_reason)
+                        <span class="fw-normal text-dark">— {{ $job->shutdown_reason }}</span>
+                    @endif
+                </p>
+            @endif
+
             <p class="act-field-label mb-0">Work Performed</p>
             <p class="mb-3">{{ $job->work_notes ?? '—' }}</p>
 
@@ -163,12 +198,12 @@
                 Tap below to take a photo — your location and start time will be captured automatically right after.
             </p>
             <label class="start-photo-btn mb-0">
-                <iconify-icon icon="solar:camera-outline"></iconify-icon>
+                <x-ui-icon name="camera" />
                 <span id="startBtnLabel">Take Photo &amp; Start</span>
                 <input type="file" accept="image/*" capture="environment" class="d-none" id="startPhotoInput">
             </label>
             <div id="startLocationPreview" class="location-box mt-3" style="display:none;">
-                <iconify-icon icon="solar:map-point-outline"></iconify-icon>
+                <x-ui-icon name="map-pin" />
                 <span id="startLocationPreviewText"></span>
             </div>
 
@@ -176,8 +211,8 @@
             {{-- STEP: In progress — full form unlocked --}}
             <form id="activityForm">
                 @if($job->job_type === 'breakdown')
-                    <p class="act-field-label mb-1">Breakdown Cause</p>
-                    <select name="breakdown_cause" class="form-select mb-3" required>
+                    <p class="act-field-label mb-1">Breakdown Cause @if($job->parent_job_id)<span class="text-muted fw-normal">(optional — follows the main job)</span>@endif</p>
+                    <select name="breakdown_cause" class="form-select mb-3" {{ $job->parent_job_id ? '' : 'required' }}>
                         <option value="">Select Breakdown Cause</option>
                         @foreach(\App\Http\Controllers\Technician\TechnicianJobController::BREAKDOWN_CAUSES as $cause)
                             <option value="{{ $cause }}" {{ $job->breakdown_cause === $cause ? 'selected' : '' }}>{{ $cause }}</option>
@@ -225,20 +260,42 @@
                     @endforeach
                 </div>
 
+                @if(in_array($job->job_type, ['breakdown', 'repair']))
+                    <p class="act-field-label mb-1">
+                        Elevator Status After {{ $job->job_type === 'breakdown' ? 'Breakdown' : 'Repair' }}
+                        @if($job->job_type === 'breakdown')<span class="text-danger">*</span>@else<span class="text-muted fw-normal">(optional)</span>@endif
+                    </p>
+                    <div class="status-choice">
+                        <label>
+                            <input type="radio" name="unit_status_after" value="working" {{ $job->unit_status_after === 'working' ? 'checked' : '' }}>
+                            <x-ui-icon name="check-circle" size="18" stroke="2.2" /> Working
+                        </label>
+                        <label>
+                            <input type="radio" name="unit_status_after" value="shutdown" {{ $job->unit_status_after === 'shutdown' ? 'checked' : '' }}>
+                            <x-ui-icon name="power" size="18" stroke="2.2" /> Shutdown
+                        </label>
+                    </div>
+                    <div id="shutdownReasonWrap" style="{{ $job->unit_status_after === 'shutdown' ? '' : 'display:none;' }}">
+                        <p class="act-field-label mb-1">Reason for Shutdown <span class="text-danger">*</span></p>
+                        <textarea name="shutdown_reason" class="form-control mb-3" rows="2" maxlength="500"
+                            placeholder="Why is the elevator shut down? e.g. waiting for controller board">{{ $job->shutdown_reason }}</textarea>
+                    </div>
+                @endif
+
                 <p class="act-field-label mb-2">Completion Attachments</p>
                 <div class="attach-row mb-2">
                     <label class="attach-btn mb-0">
-                        <iconify-icon icon="solar:camera-outline"></iconify-icon>
+                        <x-ui-icon name="camera" />
                         Add Photo
                         <input type="file" name="completion_photo" accept="image/*" capture="environment" class="d-none" id="photoInput">
                     </label>
                     <label class="attach-btn mb-0">
-                        <iconify-icon icon="solar:paperclip-outline"></iconify-icon>
+                        <x-ui-icon name="paperclip" />
                         Add File
                         <input type="file" class="d-none" id="fileInput">
                     </label>
                     <div class="attach-btn" id="sigTrigger">
-                        <iconify-icon icon="solar:pen-outline"></iconify-icon>
+                        <x-ui-icon name="pen" />
                         Signature
                     </div>
                 </div>
@@ -257,7 +314,7 @@
                     placeholder="Location will be captured when you tap Complete Activity">
 
                 <p class="small text-muted mb-3">
-                    <iconify-icon icon="solar:danger-triangle-outline"></iconify-icon>
+                    <x-ui-icon name="alert" />
                     You must be within 200m of your start location to complete this activity.
                 </p>
             </form>
@@ -457,8 +514,22 @@
         });
 
         // ===== Complete flow: requires photo + signature → auto-fetch location → show it → submit =====
+        // ===== Working / Shutdown closure choice =====
+        document.querySelectorAll('input[name="unit_status_after"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                document.getElementById('shutdownReasonWrap').style.display = this.value === 'shutdown' ? '' : 'none';
+            });
+        });
+
         document.getElementById('completeBtn')?.addEventListener('click', async function() {
             const btn = this;
+            @if($job->job_type === 'breakdown')
+                const unitStatus = document.querySelector('input[name="unit_status_after"]:checked');
+                if (!unitStatus) { showError('Please select whether the elevator is Working or Shutdown.'); return; }
+                if (unitStatus.value === 'shutdown' && !document.querySelector('textarea[name="shutdown_reason"]').value.trim()) {
+                    showError('Please enter the reason for the shutdown.'); return;
+                }
+            @endif
             if (!document.getElementById('photoInput').files.length) { showError('Please attach a completion photo before completing.'); return; }
             if (!hasSignature) { showError('Please provide a signature before completing.'); return; }
 

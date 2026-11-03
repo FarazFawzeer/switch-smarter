@@ -437,19 +437,31 @@ class ContractController extends Controller
                 $skipped[] = $unit->identification_no . ' (has maintenance work recorded)';
             }
 
-            DB::transaction(function () use ($deletable) {
+            $emptiedProjects = [];
+            DB::transaction(function () use ($deletable, &$emptiedProjects) {
                 $this->deleteUnitsAndPendingVisits($deletable->pluck('id')->all());
 
-                // keep each project's unit count in line with what's left
+                // keep each project's unit count in line with what's left; a project left with
+                // NO units and no jobs is removed too — otherwise it stays invisible in the
+                // master list (one row per unit) while still holding its route
                 foreach ($deletable->pluck('contract_id')->unique() as $contractId) {
-                    Contract::whereKey($contractId)->update([
-                        'number_of_elevators' => \App\Models\ElevatorUnit::where('contract_id', $contractId)->count(),
-                    ]);
+                    $remaining = \App\Models\ElevatorUnit::where('contract_id', $contractId)->count();
+                    $contract = Contract::find($contractId);
+
+                    if ($remaining === 0 && ! $contract->jobs()->exists()) {
+                        $this->deleteContract($contract);
+                        $emptiedProjects[] = $contract->project_name;
+                    } else {
+                        $contract->update(['number_of_elevators' => $remaining]);
+                    }
                 }
             });
 
             $deleted = $deletable->count();
             $message = "{$deleted} unit(s) deleted.";
+            if ($emptiedProjects) {
+                $message .= ' ' . count($emptiedProjects) . ' project(s) left with no units were removed too.';
+            }
         }
 
         if ($skipped) {

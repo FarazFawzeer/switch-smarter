@@ -20,7 +20,7 @@
     </style>
 
     <div class="sa-header">
-        <a href="{{ route('technician.jobs.index') }}"><iconify-icon icon="solar:arrow-left-outline"></iconify-icon></a>
+        <a href="{{ route('technician.jobs.index') }}"><x-ui-icon name="arrow-left" /></a>
         <span class="fw-bold">Select Activity</span>
     </div>
 
@@ -28,26 +28,26 @@
 
     @php
         $options = [
-            ['type' => 'ppm', 'label' => 'Preventive Maintenance', 'desc' => 'Planned and scheduled maintenance', 'color' => '#2E9E5B', 'icon' => 'solar:calendar-mark-bold'],
-            ['type' => 'casual_job', 'label' => 'Casual Job', 'desc' => 'Non-routine work / paid service', 'color' => '#9B59B6', 'icon' => 'solar:case-round-bold'],
-            ['type' => 'repair', 'label' => 'Repair', 'desc' => 'Repair under warranty / free of charge', 'color' => '#F0730A', 'icon' => 'mdi:wrench'],
-            ['type' => 'breakdown', 'label' => 'Breakdown', 'desc' => 'Unplanned breakdown / emergency', 'color' => '#D64545', 'icon' => 'solar:danger-triangle-bold'],
+            ['type' => 'ppm', 'label' => 'Preventive Maintenance', 'desc' => 'Planned and scheduled maintenance', 'color' => '#2E9E5B', 'icon' => 'calendar'],
+            ['type' => 'casual_job', 'label' => 'Casual Job', 'desc' => 'Non-routine work / paid service', 'color' => '#9B59B6', 'icon' => 'briefcase'],
+            ['type' => 'repair', 'label' => 'Repair', 'desc' => 'Repair under warranty / free of charge', 'color' => '#F0730A', 'icon' => 'wrench'],
+            ['type' => 'breakdown', 'label' => 'Breakdown', 'desc' => 'Unplanned breakdown / emergency', 'color' => '#D64545', 'icon' => 'alert'],
         ];
     @endphp
 
     @foreach($options as $opt)
         <a href="{{ route('technician.activities.search-form', $opt['type']) }}" class="sa-option" style="--opt-color: {{ $opt['color'] }};">
-            <div class="sa-icon"><iconify-icon icon="{{ $opt['icon'] }}"></iconify-icon></div>
+            <div class="sa-icon"><x-ui-icon :name="$opt['icon']" size="22" stroke="2" /></div>
             <div>
                 <div class="title">{{ $opt['label'] }}</div>
                 <div class="desc">{{ $opt['desc'] }}</div>
             </div>
-            <iconify-icon icon="solar:alt-arrow-right-outline" class="chev"></iconify-icon>
+            <x-ui-icon name="chevron-right" class="chev" />
         </a>
     @endforeach
 
     <div class="alert alert-light border small mt-3 mb-0">
-        <iconify-icon icon="solar:info-circle-outline"></iconify-icon>
+        <x-ui-icon name="info" />
         Date &amp; Time will be auto-captured once you start the activity.
     </div>
 @endsection

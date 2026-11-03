@@ -717,8 +717,10 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small">
-                        Remove a route that was added by mistake. A route that is still linked to a project
-                        cannot be deleted — move those projects to another route first.
+                        Remove a route that was added by mistake. A route used by a project with units cannot be
+                        deleted — move those projects to another route first. Routes held only by <strong>empty</strong>
+                        projects (no units, no jobs — e.g. left over from a wrong bulk upload) can be deleted; the empty
+                        projects are removed with them. Hover the Projects count to see which projects use a route.
                     </p>
                     <div id="routesMessage"></div>
                     <div class="table-responsive">
@@ -983,17 +985,22 @@
                             <td class="fw-semibold">${escapeHtml(route.route_no)}</td>
                             <td>${escapeHtml(route.description) || '<span class="text-muted">—</span>'}</td>
                             <td class="small">${escapeHtml(route.people) || '<span class="text-muted">—</span>'}</td>
-                            <td class="text-center">${route.contracts_count}</td>
+                            <td class="text-center" title="${escapeHtml(route.projects)}">
+                                ${route.contracts_count}
+                                ${route.empty_count > 0 ? `<div class="small text-warning fw-semibold">${route.empty_count} empty</div>` : ''}
+                            </td>
                             <td class="text-end">
-                                ${route.contracts_count > 0
-                                    ? '<span class="small text-muted" title="Linked to projects">In use</span>'
-                                    : `<button type="button" class="btn btn-sm btn-outline-danger delete-route" data-id="${route.id}" data-name="${escapeHtml(route.route_no)}">Delete</button>`}
+                                ${route.deletable
+                                    ? `<button type="button" class="btn btn-sm btn-outline-danger delete-route" data-id="${route.id}" data-name="${escapeHtml(route.route_no)}" data-empty="${route.empty_count}">Delete</button>`
+                                    : `<span class="small text-muted" title="Used by: ${escapeHtml(route.projects)}">In use</span>`}
                             </td>
                         </tr>`).join('');
 
                     routesBody.querySelectorAll('.delete-route').forEach(btn => {
                         btn.addEventListener('click', function() {
-                            if (!confirm(`Delete route ${this.dataset.name}?`)) return;
+                            const empty = parseInt(this.dataset.empty || '0');
+                            const note = empty > 0 ? `\n\nIts ${empty} empty project(s) (no units, no jobs) will be deleted too.` : '';
+                            if (!confirm(`Delete route ${this.dataset.name}?${note}`)) return;
                             fetch("{{ url('admin/routes') }}/" + this.dataset.id, {
                                     method: 'DELETE',
                                     headers: { 'X-CSRF-TOKEN': "{{ csrf_token() }}", 'Accept': 'application/json' }

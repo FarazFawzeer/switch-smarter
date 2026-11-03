@@ -15,7 +15,7 @@
 
     <style>
         .unit-search-box { position: relative; margin-bottom: 12px; }
-        .unit-search-box iconify-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #8792a2; font-size: 18px; }
+        .unit-search-box .ui-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #8792a2; width: 18px; height: 18px; }
         .unit-search-box input { padding-left: 38px; }
         #jobListContainer { min-height: 200px; }
         #jobListContainer.loading { opacity: 0.5; pointer-events: none; transition: opacity .15s ease; }
@@ -42,7 +42,7 @@
     </div>
 
     <div class="unit-search-box">
-        <iconify-icon icon="solar:magnifer-outline"></iconify-icon>
+        <x-ui-icon name="search" />
         <input type="text" id="unitSearchInput" class="form-control" placeholder="Search by unit ID or job no (e.g. LP-A-01, BD-2026-00003)">
     </div>
 

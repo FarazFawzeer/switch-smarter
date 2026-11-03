@@ -41,7 +41,7 @@ class TimesheetApprovalController extends Controller
 
             $records = $this->fetchRecords($technicianIds, $statusFilter, $monthFilter, true);
 
-            return view('admin.timesheet-approval.index', compact('engineers', 'supervisors', 'technicians', 'records', 'user', 'stage', 'isAdminOverride'));
+            return view('admin.timesheet-approval.index', compact('engineers', 'supervisors', 'technicians', 'records', 'user', 'stage', 'isAdminOverride') + ['adjustableIds' => TimesheetAdjustmentController::adjustableTechnicianIds($user)]);
         }
 
         if ($stage === 'supervisor') {
@@ -77,7 +77,7 @@ class TimesheetApprovalController extends Controller
             $records = collect();
         }
 
-        return view('admin.timesheet-approval.index', compact('engineers', 'supervisors', 'technicians', 'records', 'user', 'stage', 'isAdminOverride'));
+        return view('admin.timesheet-approval.index', compact('engineers', 'supervisors', 'technicians', 'records', 'user', 'stage', 'isAdminOverride') + ['adjustableIds' => TimesheetAdjustmentController::adjustableTechnicianIds($user)]);
     }
 
     public function approve(Request $request, TechnicianAttendance $attendance)

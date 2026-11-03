@@ -24,7 +24,7 @@
                             @if($job->job_code) · {{ $job->job_code }} @endif
                         </p>
                         <p class="mb-0 small text-muted">
-                            <iconify-icon icon="solar:calendar-outline" style="font-size:13px;"></iconify-icon>
+                            <x-ui-icon name="calendar" size="13" />
                             {{ $job->scheduled_date->format('d M Y') }}
                         </p>
                     </div>
@@ -35,7 +35,7 @@
     </a>
 @empty
     <div class="text-center text-muted py-5">
-        <iconify-icon icon="solar:calendar-mark-outline" style="font-size: 40px; opacity: 0.4;"></iconify-icon>
+        <x-ui-icon name="calendar" size="40" style="opacity: 0.4" />
         <p class="mt-2 mb-0">
             @php
                 $statusNames = ['pending' => 'pending', 'in_progress' => 'in-progress', 'completed' => 'completed', 'on_hold' => 'on-hold'];

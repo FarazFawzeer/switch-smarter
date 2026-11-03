@@ -1,367 +1,532 @@
 @extends('layouts.vertical', ['subtitle' => 'Dashboard'])
 
 @section('content')
+    @php
+        $pct = function (int $now, int $prev): ?int {
+            if ($prev === 0) return $now > 0 ? 100 : null;
+            return (int) round((($now - $prev) / $prev) * 100);
+        };
+        $breakdownTrend = $pct($kpi['breakdowns'], $kpi['breakdowns_prev']);
+        $repairTrend = $pct($kpi['repairs_done'], $kpi['repairs_done_prev']);
 
-    @include('layouts.partials.page-title', ['title' => 'Switch Smarter', 'subtitle' => 'Dashboard'])
+        // ---- donut (pure SVG: circumference of r=15.9155 is 100) ----
+        $typeColors = ['#2E86DE', '#1ABC9C', '#9B59B6', '#F0A202', '#8792A2'];
+        $donutTotal = max(1, (int) $unitTypes->sum());
+        $runningShare = 0; // the svg is rotated -90deg, so 0 starts at 12 o'clock
+        $donutSegments = [];
+        foreach ($unitTypes->values() as $i => $value) {
+            $share = $value / $donutTotal * 100;
+            $donutSegments[] = ['share' => $share, 'offset' => -$runningShare, 'color' => $typeColors[$i % count($typeColors)]];
+            $runningShare += $share;
+        }
+
+        // ---- units by engineer ----
+        $maxEngineer = max(1, (int) $unitsByEngineer->max('total'));
+        $engineerColors = ['#2E86DE', '#1ABC9C', '#F0730A', '#9B59B6', '#1E9E74', '#D64545'];
+
+        // ---- breakdown chart (pure HTML bars, stacked by cause) ----
+        $causeColors = ['#7FA8E6', '#86D1B5', '#F3C77E', '#B9A3EE', '#EE9A9A', '#9CCFEA', '#CDBE95', '#EBA6CE', '#9CCB93', '#CF9BEB', '#B5BCC7', '#D5D9DF'];
+        $series = collect($breakdownSummary['series'])->values();
+        $dayTotals = collect($breakdownSummary['dates'])->keys()->map(fn ($i) => $series->sum(fn ($s) => $s['data'][$i]));
+        $chartMax = max(4, (int) ceil($dayTotals->max() / 2) * 2);
+
+        // ---- calendar navigation ----
+        $prevMonth = $monthStart->copy()->subMonthNoOverflow()->format('Y-m');
+        $nextMonth = $monthStart->copy()->addMonthNoOverflow();
+        $canGoNext = $nextMonth->lte(now()->startOfMonth());
+    @endphp
 
     <style>
-        /* ===== Brand color variables — update these once the logo is shared ===== */
-        :root {
-            --brand-primary: #2E5AAC;
-            --brand-primary-soft: rgba(46, 90, 172, 0.10);
-            --brand-accent: #17A2B8;
-            --brand-navy: #0F2A43;
-            --brand-success: #2E9E5B;
-            --brand-warning: #F0A202;
-            --brand-danger: #D64545;
-        }
+        .db { --kpi-gap: 14px; }
+        .db-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; margin: 8px 0 18px; }
+        .db-greet { font-size: 26px; font-weight: 700; color: var(--ss-text); margin: 0; letter-spacing: -.01em; }
+        .db-greet-sub { color: var(--ss-muted); font-size: 14px; margin: 4px 0 0; }
+        .db-clock { display: flex; align-items: center; gap: 14px; background: var(--ss-surface); border: 1px solid var(--ss-border); border-radius: 14px; padding: 10px 16px; box-shadow: var(--ss-shadow); }
+        .db-clock-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--ss-primary) 12%, transparent); color: var(--ss-primary); }
+        .db-clock-date { font-weight: 600; color: var(--ss-text); font-size: 13.5px; }
+        .db-clock-time { color: var(--ss-muted); font-size: 13px; }
+        .db-live-badge { color: var(--ss-green); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }
+        .db-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--ss-green); display: inline-block; animation: dbPulse 1.6s infinite; }
+        @keyframes dbPulse { 0% { box-shadow: 0 0 0 0 rgba(30,158,116,.55); } 70% { box-shadow: 0 0 0 8px rgba(30,158,116,0); } 100% { box-shadow: 0 0 0 0 rgba(30,158,116,0); } }
 
-        .ss-stat-icon {
-            width: 52px;
-            height: 52px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--brand-primary-soft);
-            color: var(--brand-primary);
-            font-size: 26px;
-            flex-shrink: 0;
-        }
+        .db-month { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .db-month-label { font-size: 17px; font-weight: 700; color: var(--ss-text); }
+        .db-month select { width: 170px; background-color: var(--ss-surface); border-color: var(--ss-border); color: var(--ss-text); }
 
-        .ss-stat-value {
-            font-size: 26px;
-            font-weight: 600;
-            color: var(--brand-navy);
-            margin: 0;
+        /* KPI cards */
+        .db-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--kpi-gap); margin-bottom: 18px; }
+        @media (max-width: 1599.98px) { .db-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (max-width: 767.98px) { .db-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 479.98px) { .db-kpis { grid-template-columns: 1fr; } }
+        .db-kpi {
+            --tint: color-mix(in srgb, var(--kpi) 7%, var(--ss-surface));
+            display: flex; gap: 14px; align-items: center; padding: 18px; border-radius: 16px; text-decoration: none;
+            background: var(--tint); border: 1px solid color-mix(in srgb, var(--kpi) 16%, var(--ss-border));
+            box-shadow: var(--ss-shadow); transition: transform .15s ease, box-shadow .15s ease; min-height: 108px;
         }
+        a.db-kpi:hover { transform: translateY(-2px); box-shadow: var(--ss-shadow-lg); }
+        .db-kpi-icon { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--kpi) 16%, transparent); color: var(--kpi); }
+        .db-kpi-body { min-width: 0; }
+        .db-kpi-label { font-size: 13px; color: var(--ss-text-2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .db-kpi-num { font-size: 30px; font-weight: 800; color: var(--ss-text); line-height: 1.1; margin: 2px 0; }
+        .db-kpi-trend { font-size: 12px; font-weight: 600; color: var(--ss-green); display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+        .db-kpi-trend.bad { color: var(--ss-red); }
+        .db-kpi-trend.muted { color: var(--ss-muted); }
+        .db-kpi.priority { border: 2px solid var(--ss-red); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ss-red) 12%, transparent); }
+        .db-kpi.priority .db-kpi-num { color: var(--ss-red); }
+        .db-kpi { position: relative; }
+        /* sits on the card's top edge so it never covers the title */
+        .db-flag { position: absolute; top: -9px; right: 14px; box-shadow: 0 2px 6px rgba(214,69,69,.35); font-size: 9px; font-weight: 800; letter-spacing: .06em; color: #fff; background: var(--ss-red); border-radius: 4px; padding: 2px 6px; }
 
-        .ss-stat-label {
-            font-size: 13px;
-            color: #6b7280;
-            margin: 0;
-        }
+        /* cards */
+        .db-card { background: var(--ss-surface); border: 1px solid var(--ss-border); border-radius: 16px; box-shadow: var(--ss-shadow); padding: 20px; height: 100%; }
+        .db-card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .db-card-title { font-size: 16px; font-weight: 700; color: var(--ss-text); margin: 0; display: flex; align-items: center; gap: 8px; }
+        .db-card-link { color: var(--ss-muted); display: inline-flex; }
+        .db-card-link:hover { color: var(--ss-primary); }
+        .db-sub { font-size: 12px; color: var(--ss-muted); }
 
-        .ss-card {
-            border: none;
-            border-radius: 14px;
-            box-shadow: 0 1px 3px rgba(15, 42, 67, 0.06);
-        }
+        /* donut */
+        .db-donut-wrap { display: grid; grid-template-columns: 170px 1fr; gap: 18px; align-items: center; }
+        @media (max-width: 575.98px) { .db-donut-wrap { grid-template-columns: 1fr; justify-items: center; } }
+        .db-donut { position: relative; width: 170px; height: 170px; }
+        .db-donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .db-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .db-donut-center strong { font-size: 30px; font-weight: 800; color: var(--ss-text); line-height: 1; }
+        .db-donut-center span { font-size: 12px; color: var(--ss-muted); margin-top: 4px; }
+        .db-legend-row { display: grid; grid-template-columns: 12px 1fr auto 46px; gap: 10px; align-items: center; padding: 9px 0; font-size: 13.5px; color: var(--ss-text-2); border-bottom: 1px dashed var(--ss-border); }
+        .db-legend-row:last-child { border-bottom: 0; }
+        .db-legend-row strong { color: var(--ss-text); }
+        .db-legend-dot { width: 12px; height: 12px; border-radius: 50%; }
 
-        .ss-section-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--brand-navy);
-        }
+        /* engineers */
+        .db-eng { display: flex; gap: 12px; align-items: center; padding: 10px 0; }
+        .db-eng img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ss-border); }
+        .db-eng-name { font-weight: 600; color: var(--ss-text); font-size: 14px; }
+        .db-eng-count { font-size: 12px; color: var(--ss-muted); white-space: nowrap; }
+        .db-eng-count strong { color: var(--ss-text); }
+        .db-eng-bar { height: 8px; background: var(--ss-surface-3); border-radius: 6px; overflow: hidden; margin-top: 7px; }
+        .db-eng-bar span { display: block; height: 100%; border-radius: 6px; }
 
-        .ss-progress-thin {
-            height: 6px;
-            border-radius: 4px;
-        }
+        /* calendar */
+        .db-cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .db-cal-month { font-weight: 700; color: var(--ss-text); font-size: 15px; }
+        .db-cal-arrows { display: flex; gap: 6px; }
+        .db-cal-arrows a, .db-cal-arrows span { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--ss-text-2); border: 1px solid var(--ss-border); }
+        .db-cal-arrows a:hover { background: var(--ss-surface-2); color: var(--ss-primary); }
+        .db-cal-arrows span { opacity: .35; }
+        .db-cal { width: 100%; table-layout: fixed; text-align: center; font-size: 13px; }
+        .db-cal th { color: var(--ss-muted); font-weight: 600; padding: 4px 0 8px; font-size: 11.5px; }
+        .db-cal td { padding: 3px 0; }
+        .db-cal-day { width: 32px; height: 32px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; color: var(--ss-text); }
+        .db-cal-day.out { color: var(--ss-muted); opacity: .45; }
+        .db-cal-day.today { background: var(--ss-green); color: #fff; font-weight: 700; }
+        .db-cal-day.has-bd { cursor: pointer; font-weight: 700; }
+        .db-cal-day.has-bd::after { content: ''; position: absolute; bottom: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--ss-red); }
+        .db-cal-day.today.has-bd::after { background: #fff; }
+        .db-cal-day.has-bd:hover { background: color-mix(in srgb, var(--ss-red) 14%, transparent); }
+
+        /* live */
+        /* 2 people stats on top, 4 job-type counts below — never cramped */
+        .db-live-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .db-live-stats .db-live-stat { grid-column: span 2; }
+        @media (max-width: 575.98px) { .db-live-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .db-live-stat, .db-live-type { border-radius: 12px; background: var(--ss-surface-2); border: 1px solid var(--ss-border); padding: 12px 14px; }
+        .db-live-stat { display: flex; align-items: center; gap: 12px; }
+        .db-live-type { text-align: center; }
+        .db-live-icon { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .db-live-label { font-size: 12px; color: var(--ss-text-2); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+        .db-live-stat .db-live-label { justify-content: flex-start; }
+        .db-live-num { font-size: 22px; font-weight: 800; color: var(--ss-text); line-height: 1.2; }
+        .db-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
+        .db-live-table { width: 100%; font-size: 13px; border-collapse: separate; border-spacing: 0; }
+        .db-live-table thead th { color: var(--ss-muted); font-weight: 600; font-size: 12px; padding: 10px 8px; background: var(--ss-surface-2); border-bottom: 1px solid var(--ss-border); white-space: nowrap; }
+        .db-live-table tbody td { padding: 10px 8px !important; }
+        .db-live-table thead th:first-child { border-radius: 10px 0 0 10px; }
+        .db-live-table thead th:last-child { border-radius: 0 10px 10px 0; }
+        .db-live-table tbody td { padding: 11px 10px; border-bottom: 1px solid var(--ss-border); vertical-align: middle; color: var(--ss-text-2); }
+        .db-live-table tbody tr:last-child td { border-bottom: 0; }
+        .db-unit-ic { width: 32px; height: 32px; border-radius: 8px; background: var(--ss-surface-2); color: var(--ss-muted); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .db-unit-name { font-weight: 600; color: var(--ss-text); }
+        .db-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+        .db-type-pill { display: inline-block; padding: 3px 11px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
+        .db-status { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .db-st-progress { background: color-mix(in srgb, var(--ss-green) 15%, transparent); color: var(--ss-green); }
+        .db-st-hold { background: color-mix(in srgb, var(--ss-muted) 18%, transparent); color: var(--ss-text-2); }
+        .db-st-pending { background: color-mix(in srgb, var(--ss-amber) 16%, transparent); color: var(--ss-amber); }
+        .db-st-done { background: color-mix(in srgb, var(--ss-blue) 15%, transparent); color: var(--ss-blue); }
+        .db-row-link { color: var(--ss-muted); display: inline-flex; }
+        .db-row-link:hover { color: var(--ss-primary); }
+
+        /* breakdown chart */
+        .db-total-chip { background: color-mix(in srgb, var(--ss-purple) 15%, transparent); color: var(--ss-purple); font-weight: 700; border-radius: 8px; padding: 4px 12px; font-size: 13px; }
+        .db-bd-tools { display: flex; gap: 8px; margin-bottom: 8px; }
+        .db-bd-tools select { max-width: 200px; background-color: var(--ss-surface); border-color: var(--ss-border); color: var(--ss-text); }
+        .db-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 12px; font-size: 11.5px; color: var(--ss-text-2); }
+        .db-legend span { display: inline-flex; align-items: center; gap: 5px; }
+        .db-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+        .db-chart { position: relative; height: 240px; display: grid; grid-template-columns: 26px 1fr; gap: 6px; }
+        .db-chart-y { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; font-size: 10.5px; color: var(--ss-muted); padding-bottom: 20px; }
+        .db-chart-plot { position: relative; display: flex; align-items: flex-end; gap: 3px; padding-bottom: 20px;
+            background-image: linear-gradient(to top, var(--ss-border) 1px, transparent 1px); background-size: 100% 25%; background-position: 0 -20px; }
+        .db-bar { flex: 1; height: 100%; display: flex; flex-direction: column-reverse; position: relative; cursor: default; border-radius: 3px 3px 0 0; }
+        .db-bar.has { cursor: pointer; }
+        .db-bar.has:hover { outline: 2px solid color-mix(in srgb, var(--ss-primary) 45%, transparent); outline-offset: 1px; }
+        .db-bar i { display: block; width: 100%; }
+        .db-bar i:last-child { border-radius: 3px 3px 0 0; }
+        .db-bar-x { position: absolute; bottom: -19px; left: 50%; transform: translateX(-50%); font-size: 9.5px; color: var(--ss-muted); white-space: nowrap; }
+        .db-bar.today .db-bar-x { color: var(--ss-green); font-weight: 700; }
+
+        .bd-modal-table { width: 100%; font-size: 13px; }
+        .bd-modal-table th { color: var(--ss-muted); font-weight: 600; padding: 8px; border-bottom: 1px solid var(--ss-border); }
+        .bd-modal-table td { padding: 9px 8px; border-bottom: 1px solid var(--ss-border); vertical-align: top; color: var(--ss-text-2); }
     </style>
 
-    <div class="row g-3 mb-1">
-        <div class="col-md-6 col-xl-3">
-            <div class="card ss-card h-100">
-                <div class="card-body d-flex align-items-center gap-3">
-                    <div class="ss-stat-icon">
-                        <iconify-icon icon="solar:buildings-outline"></iconify-icon>
-                    </div>
-                    <div>
-                        <p class="ss-stat-label">Total Projects</p>
-                        <p class="ss-stat-value">{{ $totalContracts }}</p>
-                    </div>
+    <div class="db">
+        {{-- Greeting + clock --}}
+        <div class="db-head">
+            <div>
+                <h3 class="db-greet">{{ $greeting }}, {{ \Illuminate\Support\Str::of($user->name)->before(' ') }} 👋</h3>
+                <p class="db-greet-sub">Here's what's happening with your maintenance operations today.</p>
+            </div>
+            <div class="db-clock">
+                <div class="db-clock-icon"><x-ui-icon name="calendar" size="20" /></div>
+                <div>
+                    <div class="db-clock-date">{{ now()->format('l, d F Y') }}</div>
+                    <div class="db-clock-time" id="dbClock">{{ now()->format('h:i A') }}</div>
                 </div>
+                <span class="db-live-badge"><span class="db-pulse"></span> Live</span>
             </div>
         </div>
 
-        <div class="col-md-6 col-xl-3">
-            <div class="card ss-card h-100">
-                <div class="card-body d-flex align-items-center gap-3">
-                    <div class="ss-stat-icon" style="background: rgba(46,158,91,0.10); color: var(--brand-success);">
-                        <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
-                    </div>
-                    <div>
-                        <p class="ss-stat-label">Active Contracts</p>
-                        <p class="ss-stat-value">{{ $activeContracts }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {{-- Month selector --}}
+        <form method="GET" action="{{ route('dashboard') }}" class="db-month">
+            <span class="db-month-label">{{ $monthStart->format('F') }} operation</span>
+            <select name="month" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Month">
+                @foreach ($monthOptions as $value => $label)
+                    <option value="{{ $value }}" {{ $monthStart->format('Y-m') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                @endforeach
+            </select>
+        </form>
 
-        <div class="col-md-6 col-xl-3">
-            <div class="card ss-card h-100">
-                <div class="card-body d-flex align-items-center gap-3">
-                    <div class="ss-stat-icon" style="background: rgba(240,162,2,0.10); color: var(--brand-warning);">
-                        <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
-                    </div>
-                    <div>
-                        <p class="ss-stat-label">Expiring Soon (90 days)</p>
-                        <p class="ss-stat-value">{{ $expiringSoon->count() }}</p>
-                    </div>
+        {{-- KPI cards --}}
+        <div class="db-kpis">
+            <a href="{{ route('admin.contracts.index', ['view' => 'grid']) }}" class="db-kpi" style="--kpi:#2E86DE;">
+                <div class="db-kpi-icon"><x-ui-icon name="building" size="24" /></div>
+                <div class="db-kpi-body">
+                    <div class="db-kpi-label">Total Projects</div>
+                    <div class="db-kpi-num">{{ number_format($kpi['projects']) }}</div>
+                    <div class="db-kpi-trend {{ $kpi['projects_new'] ? '' : 'muted' }}"><x-ui-icon name="arrow-up" size="13" stroke="2.4" /> {{ $kpi['projects_new'] }} this month</div>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-xl-3">
-            <div class="card ss-card h-100">
-                <div class="card-body d-flex align-items-center gap-3">
-                    <div class="ss-stat-icon" style="background: rgba(23,162,184,0.10); color: var(--brand-accent);">
-                 <iconify-icon icon="solar:transfer-vertical-outline"></iconify-icon>
-                    </div>
-                    <div>
-                        <p class="ss-stat-label">Total Elevator Units</p>
-                        <p class="ss-stat-value">{{ $totalElevatorUnits }}</p>
-                    </div>
+            </a>
+            <a href="{{ route('admin.contracts.index') }}" class="db-kpi" style="--kpi:#1E9E74;">
+                <div class="db-kpi-icon"><x-ui-icon name="layers" size="24" /></div>
+                <div class="db-kpi-body">
+                    <div class="db-kpi-label">Total Units</div>
+                    <div class="db-kpi-num">{{ number_format($kpi['units']) }}</div>
+                    <div class="db-kpi-trend {{ $kpi['units_new'] ? '' : 'muted' }}"><x-ui-icon name="arrow-up" size="13" stroke="2.4" /> {{ $kpi['units_new'] }} this month</div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3 mt-1">
-        {{-- Contract status breakdown --}}
-        <div class="col-lg-4">
-            <div class="card ss-card h-100">
-                <div class="card-header bg-transparent border-0 pb-0">
-                    <p class="ss-section-title mb-0">Contract Status</p>
-                </div>
-                <div class="card-body">
-                    <div id="statusDonutChart"></div>
-                    <div class="d-flex justify-content-between mt-2 px-2">
-                        <div class="text-center">
-                            <p class="mb-0 fw-semibold" style="color: var(--brand-success);">{{ $activeContracts }}</p>
-                            <p class="mb-0 small text-muted">Active</p>
-                        </div>
-                        <div class="text-center">
-                            <p class="mb-0 fw-semibold" style="color: var(--brand-warning);">{{ $expiredContracts }}</p>
-                            <p class="mb-0 small text-muted">Expired</p>
-                        </div>
-                        <div class="text-center">
-                            <p class="mb-0 fw-semibold" style="color: var(--brand-danger);">{{ $cancelledContracts }}</p>
-                            <p class="mb-0 small text-muted">Cancelled</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Elevator unit type breakdown --}}
-        <div class="col-lg-4">
-            <div class="card ss-card h-100">
-                <div class="card-header bg-transparent border-0 pb-0">
-                    <p class="ss-section-title mb-0">Unit Types</p>
-                </div>
-                <div class="card-body">
-                    <div id="unitTypeChart"></div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Contracts by engineer (admin only) OR expiring list (engineer/supervisor view) --}}
-        <div class="col-lg-4">
-            <div class="card ss-card h-100">
-                <div class="card-header bg-transparent border-0 pb-0">
-                    <p class="ss-section-title mb-0">
-                        {{ $isAdmin ? 'Projects by Engineer' : 'Your Workload' }}
-                    </p>
-                </div>
-                <div class="card-body">
-                    @if ($isAdmin && $contractsByEngineer->count())
-                        @foreach ($contractsByEngineer as $row)
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <span class="small">{{ $row['name'] }}</span>
-                                    <span class="small fw-semibold">{{ $row['total'] }}</span>
-                                </div>
-                                <div class="progress ss-progress-thin">
-                                    <div class="progress-bar"
-                                        style="width: {{ $totalContracts ? round(($row['total'] / $totalContracts) * 100) : 0 }}%; background-color: var(--brand-primary);">
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    @elseif(!$isAdmin)
-                        <div class="text-center text-muted py-4">
-                            <iconify-icon icon="solar:widget-outline" style="font-size: 32px;"></iconify-icon>
-                            <p class="mb-0 mt-2 small">Overview of your assigned projects</p>
-                            <p class="mb-0 fw-semibold" style="font-size: 22px; color: var(--brand-navy);">
-                                {{ $totalContracts }} projects</p>
+            </a>
+            <a href="{{ route('admin.job-types.breakdown', ['month' => $monthStart->month, 'year' => $monthStart->year]) }}" class="db-kpi" style="--kpi:#7B4FD6;">
+                <div class="db-kpi-icon"><x-ui-icon name="activity" size="24" /></div>
+                <div class="db-kpi-body">
+                    <div class="db-kpi-label">Breakdown</div>
+                    <div class="db-kpi-num">{{ $kpi['breakdowns'] }}</div>
+                    @if (! is_null($breakdownTrend))
+                        {{-- more breakdowns = bad --}}
+                        <div class="db-kpi-trend {{ $breakdownTrend > 0 ? 'bad' : '' }}">
+                            <x-ui-icon :name="$breakdownTrend > 0 ? 'arrow-up' : 'arrow-down'" size="13" stroke="2.4" /> {{ abs($breakdownTrend) }}% vs last month
                         </div>
                     @else
-                        <div class="text-center text-muted py-4">No data yet.</div>
+                        <div class="db-kpi-trend muted">recorded this month</div>
+                    @endif
+                </div>
+            </a>
+            <a href="{{ route('admin.shutdown-units.index') }}" class="db-kpi {{ $kpi['shutdown'] > 0 ? 'priority' : '' }}" style="--kpi:#D64545;"
+                title="Click to see every elevator that is currently shut down">
+                <div class="db-kpi-icon"><x-ui-icon name="alert" size="24" /></div>
+                @if ($kpi['shutdown'] > 0)<span class="db-flag">PRIORITY</span>@endif
+                <div class="db-kpi-body">
+                    <div class="db-kpi-label">Shutdown Units</div>
+                    <div class="db-kpi-num">{{ $kpi['shutdown'] }}</div>
+                    <div class="db-kpi-trend {{ $kpi['shutdown'] > 0 ? 'bad' : 'muted' }}">{{ $kpi['shutdown'] > 0 ? 'view the list' : 'all working' }}</div>
+                </div>
+            </a>
+            <a href="{{ route('admin.job-types.casual-job') }}" class="db-kpi" style="--kpi:#E08A00;">
+                <div class="db-kpi-icon"><x-ui-icon name="wrench" size="24" /></div>
+                <div class="db-kpi-body">
+                    <div class="db-kpi-label">Casual Jobs</div>
+                    <div class="db-kpi-num">{{ $kpi['casual_open'] }}</div>
+                    <div class="db-kpi-trend muted">pending / in progress</div>
+                </div>
+            </a>
+            <a href="{{ route('admin.job-types.repair', ['month' => $monthStart->month, 'year' => $monthStart->year, 'status' => 'completed']) }}" class="db-kpi" style="--kpi:#9B59B6;">
+                <div class="db-kpi-icon"><x-ui-icon name="settings" size="24" /></div>
+                <div class="db-kpi-body">
+                    <div class="db-kpi-label">Repair</div>
+                    <div class="db-kpi-num">{{ $kpi['repairs_done'] }}</div>
+                    @if (! is_null($repairTrend))
+                        <div class="db-kpi-trend {{ $repairTrend < 0 ? 'bad' : '' }}">
+                            <x-ui-icon :name="$repairTrend >= 0 ? 'arrow-up' : 'arrow-down'" size="13" stroke="2.4" /> {{ abs($repairTrend) }}% vs last month
+                        </div>
+                    @else
+                        <div class="db-kpi-trend muted">completed this month</div>
+                    @endif
+                </div>
+            </a>
+        </div>
+
+        {{-- Units by type · Units by engineer · Calendar --}}
+        <div class="row g-3 mb-3">
+            <div class="col-xxl-4 col-lg-6">
+                <div class="db-card">
+                    <div class="db-card-head">
+                        <p class="db-card-title">Total Units by Equipment Type</p>
+                        <a href="{{ route('admin.contracts.index') }}" class="db-card-link" aria-label="Open master list"><x-ui-icon name="chevron-right" size="18" /></a>
+                    </div>
+                    @if ($unitTypes->isEmpty())
+                        <p class="text-muted small mb-0">No units yet.</p>
+                    @else
+                        <div class="db-donut-wrap">
+                            <div class="db-donut">
+                                <svg viewBox="0 0 42 42" aria-hidden="true">
+                                    <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--ss-surface-3)" stroke-width="5"></circle>
+                                    @foreach ($donutSegments as $seg)
+                                        <circle cx="21" cy="21" r="15.9155" fill="none" stroke="{{ $seg['color'] }}" stroke-width="5"
+                                            stroke-dasharray="{{ max(0, $seg['share'] - 0.6) }} {{ 100 - max(0, $seg['share'] - 0.6) }}"
+                                            stroke-dashoffset="{{ $seg['offset'] }}"></circle>
+                                    @endforeach
+                                </svg>
+                                <div class="db-donut-center">
+                                    <strong>{{ number_format($kpi['units']) }}</strong>
+                                    <span>Total Units</span>
+                                </div>
+                            </div>
+                            <div>
+                                @foreach ($unitTypes as $type => $total)
+                                    <div class="db-legend-row">
+                                        <span class="db-legend-dot" style="background: {{ $typeColors[$loop->index % count($typeColors)] }};"></span>
+                                        <span>{{ $type }}</span>
+                                        <strong>{{ $total }}</strong>
+                                        <span class="db-sub text-end">{{ round($total / $donutTotal * 100, 1) }}%</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            </div>
+
+            <div class="col-xxl-4 col-lg-6">
+                <div class="db-card">
+                    <div class="db-card-head">
+                        <p class="db-card-title">Units by Engineer</p>
+                        <a href="{{ route('admin.team.index') }}" class="db-card-link" aria-label="Open team"><x-ui-icon name="chevron-right" size="18" /></a>
+                    </div>
+                    @forelse ($unitsByEngineer as $engineer)
+                        @php $color = $engineerColors[$loop->index % count($engineerColors)]; @endphp
+                        <div class="db-eng">
+                            <img src="{{ storage_asset($engineer->image_path) ?? asset('images/users/avatar-' . (($loop->index % 9) + 1) . '.jpg') }}" alt="">
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex justify-content-between align-items-baseline gap-2">
+                                    <span class="db-eng-name text-truncate">{{ $engineer->name }}</span>
+                                    <span class="db-eng-count"><strong>{{ $engineer->total }}</strong> units · {{ $kpi['units'] ? round($engineer->total / $kpi['units'] * 100) : 0 }}%</span>
+                                </div>
+                                <div class="db-eng-bar"><span style="width: {{ round($engineer->total / $maxEngineer * 100) }}%; background: {{ $color }};"></span></div>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-muted small mb-0">No units assigned to engineers yet.</p>
+                    @endforelse
+                </div>
+            </div>
+
+            <div class="col-xxl-4 col-lg-12">
+                <div class="db-card">
+                    <div class="db-card-head mb-2">
+                        <p class="db-card-title">Calendar</p>
+                        <span class="db-sub d-inline-flex align-items-center gap-1"><span class="db-dot" style="background: var(--ss-red);"></span> breakdown day — click to view</span>
+                    </div>
+                    <div class="db-cal-nav">
+                        <span class="db-cal-month">{{ $monthStart->format('F Y') }}</span>
+                        <div class="db-cal-arrows">
+                            <a href="{{ route('dashboard', ['month' => $prevMonth]) }}" aria-label="Previous month"><x-ui-icon name="chevron-left" size="16" /></a>
+                            @if ($canGoNext)
+                                <a href="{{ route('dashboard', ['month' => $nextMonth->format('Y-m')]) }}" aria-label="Next month"><x-ui-icon name="chevron-right" size="16" /></a>
+                            @else
+                                <span><x-ui-icon name="chevron-right" size="16" /></span>
+                            @endif
+                        </div>
+                    </div>
+                    <table class="db-cal">
+                        <thead><tr>@foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $d)<th>{{ $d }}</th>@endforeach</tr></thead>
+                        <tbody>
+                            @foreach ($calendar as $week)
+                                <tr>
+                                    @foreach ($week as $day)
+                                        <td>
+                                            <div class="db-cal-day {{ $day['inMonth'] ? '' : 'out' }} {{ $day['isToday'] ? 'today' : '' }} {{ $day['breakdowns'] ? 'has-bd' : '' }}"
+                                                @if ($day['breakdowns']) data-date="{{ $day['date']->toDateString() }}" title="{{ $day['breakdowns'] }} breakdown(s) — click for causes" @endif>
+                                                {{ $day['date']->day }}
+                                            </div>
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {{-- Live activity · Breakdown summary --}}
+        <div class="row g-3">
+            <div class="col-xxl-7">
+                <div class="db-card">
+                    <div class="db-card-head">
+                        <div>
+                            <p class="db-card-title"><span class="db-pulse"></span> Live Maintenance Activity</p>
+                            <div class="db-sub mt-1">Real-time view of today's work across all units</div>
+                        </div>
+                        <a href="{{ route('admin.tracking.index', ['from' => now()->toDateString(), 'to' => now()->toDateString()]) }}"
+                            class="small fw-semibold d-inline-flex align-items-center" style="color: var(--ss-primary);">View All <x-ui-icon name="chevron-right" size="14" /></a>
+                    </div>
+                    <div id="liveActivity">
+                        @include('dashboard._live', ['live' => $live])
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xxl-5">
+                <div class="db-card">
+                    <div class="db-card-head">
+                        <p class="db-card-title">Breakdown Summary</p>
+                        <span class="db-total-chip">Total {{ $breakdownSummary['total'] }}</span>
+                    </div>
+                    <div class="db-bd-tools">
+                        <select id="bdDaySelect" class="form-select form-select-sm" aria-label="Day">
+                            <option value="">Pick a day…</option>
+                            @foreach ($breakdownSummary['dates'] as $i => $date)
+                                @if ($dayTotals[$i] > 0)
+                                    <option value="{{ $date }}">{{ $breakdownSummary['labels'][$i] }} — {{ $dayTotals[$i] }} breakdown{{ $dayTotals[$i] > 1 ? 's' : '' }}</option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <button type="button" id="bdDayBtn" class="btn btn-sm btn-primary text-nowrap">View causes</button>
+                    </div>
+
+                    @if ($breakdownSummary['total'] > 0)
+                        <div class="db-legend">
+                            @foreach ($series as $s)
+                                <span><i style="background: {{ $causeColors[$loop->index % count($causeColors)] }};"></i>{{ $s['name'] }}</span>
+                            @endforeach
+                        </div>
+                        <div class="db-chart">
+                            <div class="db-chart-y">
+                                @foreach ([$chartMax, $chartMax * 0.75, $chartMax * 0.5, $chartMax * 0.25, 0] as $tick)
+                                    <span>{{ rtrim(rtrim(number_format($tick, 1), '0'), '.') }}</span>
+                                @endforeach
+                            </div>
+                            <div class="db-chart-plot">
+                                @foreach ($breakdownSummary['dates'] as $i => $date)
+                                    @php
+                                        $tip = $series->filter(fn ($s) => $s['data'][$i] > 0)->map(fn ($s) => $s['name'] . ': ' . $s['data'][$i])->implode("\n");
+                                        $dayNum = $i + 1;
+                                    @endphp
+                                    <div class="db-bar {{ $dayTotals[$i] ? 'has' : '' }} {{ $date === now()->toDateString() ? 'today' : '' }}"
+                                        @if ($dayTotals[$i]) data-date="{{ $date }}" title="{{ $breakdownSummary['labels'][$i] }} — {{ $dayTotals[$i] }} breakdown(s)&#10;{{ $tip }}" @endif>
+                                        @foreach ($series as $s)
+                                            @if ($s['data'][$i] > 0)
+                                                <i style="height: {{ $s['data'][$i] / $chartMax * 100 }}%; background: {{ $causeColors[$loop->index % count($causeColors)] }};"></i>
+                                            @endif
+                                        @endforeach
+                                        @if ($dayNum === 1 || $dayNum % 3 === 0)
+                                            <span class="db-bar-x">{{ $dayNum }}</span>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        <div class="db-sub mt-2">Breakdowns per day, coloured by cause — click a bar for that day's details.</div>
+                    @else
+                        <div class="text-center py-5">
+                            <div class="db-unit-ic mx-auto mb-2" style="width:48px;height:48px;border-radius:50%;"><x-ui-icon name="check-circle" size="24" /></div>
+                            <p class="mb-0" style="color: var(--ss-muted);">No breakdowns recorded in {{ $monthStart->format('F Y') }}.</p>
+                        </div>
                     @endif
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row g-3 mt-1">
-        {{-- Contracts expiring soon --}}
-        <div class="col-lg-5">
-            <div class="card ss-card h-100">
-                <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
-                    <p class="ss-section-title mb-0">Expiring Soon</p>
-                    <a href="{{ route('admin.contracts.index') }}" class="small">View all</a>
-                </div>
-                <div class="card-body pt-0">
-                    @forelse($expiringSoon as $contract)
-                        <div
-                            class="d-flex justify-content-between align-items-center py-2 {{ !$loop->last ? 'border-bottom' : '' }}">
-                            <div>
-                                <a href="{{ route('admin.contracts.show', $contract->id) }}"
-                                    class="fw-semibold text-dark d-block">{{ $contract->project_name }}</a>
-                                <span class="small text-muted">{{ $contract->location }}</span>
-                            </div>
-                            <span class="badge" style="background: rgba(240,162,2,0.12); color: var(--brand-warning);">
-                                {{ Carbon\Carbon::today()->diffInDays($contract->contract_end_date) }} days left
-                            </span>
-                        </div>
-                    @empty
-                        <div class="text-center text-muted py-4">Nothing expiring in the next 90 days.</div>
-                    @endforelse
-                </div>
-            </div>
-        </div>
-
-        {{-- Recently added projects --}}
-        <div class="col-lg-7">
-            <div class="card ss-card h-100">
-                <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
-                    <p class="ss-section-title mb-0">Recently Added Projects</p>
-                    <a href="{{ route('admin.contracts.create') }}" class="btn btn-sm"
-                        style="background: var(--brand-primary); color: #fff;">
-                        <iconify-icon icon="solar:add-circle-outline" style="margin-right:4px;"></iconify-icon> New Project
-                    </a>
-                </div>
-                <div class="card-body pt-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover table-centered mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Project</th>
-                                    <th>Engineer</th>
-                                    <th>Units</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($recentContracts as $contract)
-                                    @php
-                                        $statusColor = match ($contract->status) {
-                                            'active' => 'success',
-                                            'expired' => 'warning',
-                                            'cancelled' => 'danger',
-                                            default => 'secondary',
-                                        };
-                                    @endphp
-                                    <tr>
-                                        <td>
-                                            <a href="{{ route('admin.contracts.show', $contract->id) }}"
-                                                class="text-dark fw-semibold">
-                                                {{ $contract->project_name }}
-                                            </a>
-                                            <div class="small text-muted">{{ $contract->location }}</div>
-                                        </td>
-                                        <td>{{ optional($contract->engineer)->name ?? '—' }}</td>
-                                        <td>{{ $contract->elevator_units_count }}</td>
-                                        <td><span
-                                                class="badge badge-soft-{{ $statusColor }}">{{ ucfirst($contract->status) }}</span>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="4" class="text-center text-muted py-4">No projects yet.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
+    {{-- Daily Breakdown Details modal --}}
+    <div class="modal fade" id="bdDayModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title mb-0">Breakdown Details</h5>
+                        <div class="db-sub" id="bdDayTitle"></div>
                     </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
+                <div class="modal-body" id="bdDayBody"></div>
             </div>
         </div>
     </div>
 
-@endsection
-
-@push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const brandPrimary = '#2E5AAC';
-            const brandSuccess = '#2E9E5B';
-            const brandWarning = '#F0A202';
-            const brandDanger = '#D64545';
-            const brandAccent = '#17A2B8';
+            // ----- clock (Qatar time) -----
+            const clock = document.getElementById('dbClock');
+            const tick = () => clock.textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Qatar' });
+            setInterval(tick, 15000);
 
-            // Contract status donut
-            if (document.getElementById('statusDonutChart')) {
-                new ApexCharts(document.getElementById('statusDonutChart'), {
-                    chart: {
-                        type: 'donut',
-                        height: 220
-                    },
-                    series: [{{ $activeContracts }}, {{ $expiredContracts }}, {{ $cancelledContracts }}],
-                    labels: ['Active', 'Expired', 'Cancelled'],
-                    colors: [brandSuccess, brandWarning, brandDanger],
-                    legend: {
-                        show: false
-                    },
-                    dataLabels: {
-                        enabled: false
-                    },
-                    plotOptions: {
-                        pie: {
-                            donut: {
-                                size: '70%'
-                            }
-                        }
-                    },
-                }).render();
-            }
+            // ----- daily breakdown details -----
+            const modalEl = document.getElementById('bdDayModal');
+            const modal = window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+            const esc = v => { const d = document.createElement('div'); d.textContent = v ?? ''; return d.innerHTML; };
 
-            // Unit type breakdown
-            // Unit type breakdown
-            if (document.getElementById('unitTypeChart')) {
-                const elevatorCount = {{ (int) ($unitTypeBreakdown['Elevator'] ?? 0) }};
-                const escalatorCount = {{ (int) ($unitTypeBreakdown['Escalator'] ?? 0) }};
-                const dumbwaiterCount = {{ (int) ($unitTypeBreakdown['Dumbwaiter'] ?? 0) }};
+            window.openBreakdownDay = function(date) {
+                if (!date || !modal) return;
+                document.getElementById('bdDayTitle').textContent = 'Loading…';
+                document.getElementById('bdDayBody').innerHTML = '<p class="text-muted mb-0">Loading…</p>';
+                modal.show();
 
-                new ApexCharts(document.getElementById('unitTypeChart'), {
-                    chart: {
-                        type: 'bar',
-                        height: 220,
-                        toolbar: {
-                            show: false
+                fetch(`{{ route('admin.dashboard.breakdowns') }}?date=${date}`, { headers: { 'Accept': 'application/json' } })
+                    .then(r => r.json())
+                    .then(data => {
+                        document.getElementById('bdDayTitle').textContent = `${data.date} — ${data.count} breakdown${data.count === 1 ? '' : 's'}`;
+                        if (!data.count) {
+                            document.getElementById('bdDayBody').innerHTML = '<p class="text-muted mb-0">No breakdowns on this day.</p>';
+                            return;
                         }
-                    },
-                    series: [{
-                        name: 'Units',
-                        data: [elevatorCount, escalatorCount, dumbwaiterCount]
-                    }],
-                    xaxis: {
-                        categories: ['Elevator', 'Escalator', 'Dumbwaiter']
-                    },
-                    colors: [brandAccent],
-                    plotOptions: {
-                        bar: {
-                            borderRadius: 6,
-                            columnWidth: '45%'
-                        }
-                    },
-                    dataLabels: {
-                        enabled: false
-                    },
-                    grid: {
-                        borderColor: '#eee'
-                    },
-                    noData: {
-                        text: 'No elevator units recorded yet',
-                        style: {
-                            color: '#8792a2',
-                            fontSize: '13px'
-                        }
-                    },
-                }).render();
-            }
+                        document.getElementById('bdDayBody').innerHTML = `
+                            <table class="bd-modal-table">
+                                <thead><tr><th>Job</th><th>Unit / Project</th><th>Cause of Breakdown</th><th>Technician(s)</th><th>Status</th></tr></thead>
+                                <tbody>${data.rows.map(r => `
+                                    <tr>
+                                        <td><a href="${r.url}" class="fw-semibold">${esc(r.code)}</a></td>
+                                        <td><div class="db-unit-name">${esc(r.unit)}</div><div class="db-sub">${esc(r.project)}${r.location ? ' — ' + esc(r.location) : ''}</div></td>
+                                        <td class="db-unit-name">${esc(r.cause)}</td>
+                                        <td>${esc(r.technicians) || '—'}</td>
+                                        <td>${esc(r.status)}${r.unit_status ? `<div class="db-sub" style="color:${r.unit_status === 'Shutdown' ? 'var(--ss-red)' : 'var(--ss-green)'}; font-weight:700;">${esc(r.unit_status)}</div>` : ''}</td>
+                                    </tr>`).join('')}
+                                </tbody>
+                            </table>`;
+                    });
+            };
+
+            document.getElementById('bdDayBtn').addEventListener('click', () => openBreakdownDay(document.getElementById('bdDaySelect').value));
+            document.querySelectorAll('.db-cal-day.has-bd, .db-bar.has').forEach(el => el.addEventListener('click', () => openBreakdownDay(el.dataset.date)));
+
+            // ----- live activity: refresh every minute -----
+            setInterval(() => {
+                if (document.hidden) return;
+                fetch("{{ route('admin.dashboard.live') }}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(r => r.ok ? r.text() : null)
+                    .then(html => { if (html) document.getElementById('liveActivity').innerHTML = html; });
+            }, 60000);
         });
     </script>
-@endpush
+@endsection

@@ -4,9 +4,7 @@
 
             {{-- Left: Logo --}}
             <a href="{{ route('technician.jobs.index') }}" class="technician-logo d-flex align-items-center text-decoration-none">
-                <span class="switch-logo-badge">
-                    <img src="/images/switch-smarter.png" alt="Switch" class="switch-logo">
-                </span>
+                <img src="{{ asset('images/switch-logo-light.png') }}" alt="Switch Smarter" class="switch-logo">
                 <div class="technician-app-name">
                     <span>Technician App</span>
                 </div>
@@ -16,7 +14,7 @@
             <div class="d-flex align-items-center">
                 <div class="topbar-item">
                     <button type="button" class="topbar-button notification-button" aria-label="Notifications">
-                        <iconify-icon icon="solar:bell-outline"></iconify-icon>
+                        <x-ui-icon name="bell" />
                     </button>
                 </div>
             </div>
@@ -28,19 +26,23 @@
 {{-- Bottom Navigation --}}
 <div class="tech-bottomnav">
     <a href="{{ route('technician.jobs.index') }}" class="{{ request()->routeIs('technician.jobs.index') ? 'active' : '' }}">
-        <iconify-icon icon="solar:widget-5-outline"></iconify-icon>
+        <x-ui-icon name="grid" />
         <span>Dashboard</span>
     </a>
     <a href="{{ route('technician.jobs.browse') }}" class="{{ request()->routeIs('technician.jobs.browse') ? 'active' : '' }}">
-        <iconify-icon icon="solar:clipboard-list-outline"></iconify-icon>
+        <x-ui-icon name="clipboard" />
         <span>Jobs</span>
     </a>
     <a href="{{ route('technician.schedule') }}" class="{{ request()->routeIs('technician.schedule') ? 'active' : '' }}">
-        <iconify-icon icon="solar:calendar-outline"></iconify-icon>
+        <x-ui-icon name="calendar" />
         <span>Schedule</span>
     </a>
+    <a href="{{ route('technician.leave.index') }}" class="{{ request()->routeIs('technician.leave.*') ? 'active' : '' }}">
+        <x-ui-icon name="file-text" />
+        <span>Leave</span>
+    </a>
     <a href="{{ route('technician.profile') }}" class="{{ request()->routeIs('technician.profile') ? 'active' : '' }}">
-        <iconify-icon icon="solar:user-outline"></iconify-icon>
+        <x-ui-icon name="user" />
         <span>Profile</span>
     </a>
 </div>
@@ -88,7 +90,7 @@
     }
 
     .switch-logo {
-        height: 22px;
+        height: 30px;
         width: auto;
         object-fit: contain;
         display: block;
@@ -156,8 +158,8 @@
     }
 
     
-    .tech-bottomnav iconify-icon {
-        font-size: 22px;
+    .tech-bottomnav .ui-icon {
+        width: 22px; height: 22px;
         display: block;
         margin: 0 auto 3px;
     }
@@ -172,7 +174,7 @@
     @media (max-width: 767.98px) {
         .technician-topbar { min-height: 60px; }
         .technician-topbar .navbar-header { min-height: 60px; }
-        .switch-logo { height: 20px; }
+        .switch-logo { height: 28px; }
         .technician-app-name { font-size: 10px; }
     }
 </style>
