@@ -5,7 +5,7 @@
     $topOpenBreakdowns = \App\Models\JobRecord::whereNull('parent_job_id')->where('job_type', 'breakdown')
         ->whereIn('status', ['pending', 'in_progress', 'on_hold'])->count();
     $topAlerts = $topShutdown + $topLeave;
-    $topAvatar = $topUser?->image_path ? storage_asset($topUser->image_path) : asset('images/users/avatar-6.jpg');
+    $topAvatar = user_avatar($topUser?->image_path);
 @endphp
 
 <header class="app-topbar ss-topbar">

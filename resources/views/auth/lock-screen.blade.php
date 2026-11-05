@@ -29,7 +29,7 @@
                                 </div>
 
                                 {{-- Display logged user --}}
-                                <img src="{{ Auth::user()?->image_path ? asset(Auth::user()->image_path) : asset('images/users/avatar-6.jpg') }}"
+                                <img src="{{ user_avatar(Auth::user()?->image_path) }}"
                                     alt="User Avatar" class="rounded-circle mb-3"
                                     style="width:80px;height:80px;object-fit:cover;">
 

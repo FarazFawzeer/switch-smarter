@@ -326,7 +326,7 @@
                     @forelse ($unitsByEngineer as $engineer)
                         @php $color = $engineerColors[$loop->index % count($engineerColors)]; @endphp
                         <div class="db-eng">
-                            <img src="{{ storage_asset($engineer->image_path) ?? asset('images/users/avatar-' . (($loop->index % 9) + 1) . '.jpg') }}" alt="">
+                            <img src="{{ user_avatar($engineer->image_path) }}" alt="">
                             <div class="flex-grow-1 min-w-0">
                                 <div class="d-flex justify-content-between align-items-baseline gap-2">
                                     <span class="db-eng-name text-truncate">{{ $engineer->name }}</span>

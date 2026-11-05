@@ -402,7 +402,7 @@
                                     <td>{{ $member->employee_id ?? '—' }}</td>
                                     <td>
                                         <div class="d-flex align-items-center gap-2">
-                                            <img src="{{ storage_asset($member->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                            <img src="{{ user_avatar($member->image_path) }}"
                                                 class="avatar-sm rounded-circle">
                                             <a href="{{ route('admin.team.show', $member->id) }}"
                                                 class="tm-name">{{ $member->name }}</a>
@@ -468,7 +468,7 @@
                     @foreach ($managers as $manager)
                         <div class="tm-row d-flex justify-content-between align-items-center">
                             <div class="d-flex align-items-center gap-2">
-                                <img src="{{ storage_asset($manager->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                <img src="{{ user_avatar($manager->image_path) }}"
                                     class="avatar-sm rounded-circle">
                                 <div>
                                     <a href="{{ route('admin.team.show', $manager->id) }}"
@@ -496,7 +496,7 @@
                             data-bs-toggle="collapse" data-bs-target="#engineer-{{ $engineer->id }}">
                             <div class="d-flex align-items-center justify-content-between w-100 me-2">
                                 <div class="d-flex align-items-center gap-3">
-                                    <img src="{{ storage_asset($engineer->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                    <img src="{{ user_avatar($engineer->image_path) }}"
                                         class="avatar-sm rounded-circle">
                                     <div>
                                         <span class="tm-name">{{ $engineer->name }}</span>
@@ -527,7 +527,7 @@
                                         <div class="d-flex align-items-center gap-2">
                                             <iconify-icon icon="solar:alt-arrow-right-outline"
                                                 class="supervisor-chevron"></iconify-icon>
-                                            <img src="{{ storage_asset($supervisor->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                            <img src="{{ user_avatar($supervisor->image_path) }}"
                                                 class="avatar-sm rounded-circle">
                                             <div>
                                                 <a href="{{ route('admin.team.show', $supervisor->id) }}"
@@ -550,7 +550,7 @@
                                             @forelse($supervisor->technicians as $technician)
                                                 <div class="tm-row d-flex justify-content-between align-items-center">
                                                     <div class="d-flex align-items-center gap-2">
-                                                        <img src="{{ storage_asset($technician->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                                        <img src="{{ user_avatar($technician->image_path) }}"
                                                             class="avatar-sm rounded-circle">
                                                         <div>
                                                             <a href="{{ route('admin.team.show', $technician->id) }}"

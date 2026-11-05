@@ -5,7 +5,7 @@
 
     <div class="card">
         <div class="card-body text-center">
-            <img src="{{ $user->image_path ? asset($user->image_path) : asset('images/users/avatar-17.jpg') }}"
+            <img src="{{ user_avatar($user->image_path) }}"
                 class="rounded-circle mb-3" style="width:88px; height:88px; object-fit:cover;">
             <h5 class="mb-1">{{ $user->name }}</h5>
             <span class="badge" style="background:#2E5AAC;">Technician</span>

@@ -60,7 +60,7 @@
             {{-- Identity card --}}
             <div class="card tm-show-card">
                 <div class="card-body text-center">
-                    <img src="{{ storage_asset($team->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                    <img src="{{ user_avatar($team->image_path) }}"
                         alt="{{ $team->name }}" class="rounded-circle mb-3"
                         style="width: 96px; height: 96px; object-fit: cover;">
                     <h5 class="mb-1">{{ $team->name }}</h5>
@@ -97,7 +97,7 @@
                 <div class="card-body">
                     @if ($team->type === 'Supervisor' && $team->engineer)
                         <div class="d-flex align-items-center gap-2">
-                            <img src="{{ storage_asset($team->engineer->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                            <img src="{{ user_avatar($team->engineer->image_path) }}"
                                 class="avatar-sm rounded-circle">
                             <div>
                                 <a href="{{ route('admin.team.show', $team->engineer->id) }}"
@@ -107,7 +107,7 @@
                         </div>
                     @elseif($team->type === 'Technician' && $team->supervisor)
                         <div class="d-flex align-items-center gap-2">
-                            <img src="{{ storage_asset($team->supervisor->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                            <img src="{{ user_avatar($team->supervisor->image_path) }}"
                                 class="avatar-sm rounded-circle">
                             <div>
                                 <a href="{{ route('admin.team.show', $team->supervisor->id) }}"
@@ -160,7 +160,7 @@
                         @forelse($reportees as $supervisor)
                             <div class="tm-report-row justify-content-between">
                                 <div class="d-flex align-items-center gap-2">
-                                    <img src="{{ storage_asset($supervisor->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                    <img src="{{ user_avatar($supervisor->image_path) }}"
                                         class="avatar-sm rounded-circle">
                                     <div>
                                         <a href="{{ route('admin.team.show', $supervisor->id) }}"
@@ -183,7 +183,7 @@
                         @forelse($reportees as $technician)
                             <div class="tm-report-row justify-content-between">
                                 <div class="d-flex align-items-center gap-2">
-                                    <img src="{{ storage_asset($technician->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                    <img src="{{ user_avatar($technician->image_path) }}"
                                         class="avatar-sm rounded-circle">
                                     <div>
                                         <a href="{{ route('admin.team.show', $technician->id) }}"

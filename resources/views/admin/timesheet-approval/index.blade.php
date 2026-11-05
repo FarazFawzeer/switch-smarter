@@ -215,7 +215,7 @@
                                 <div class="ap-employee-cell ap-employee-toggle" data-target="ap-detail-{{ $record->id }}"
                                     title="Show every unit worked on this day">
                                     <iconify-icon icon="solar:alt-arrow-right-outline" class="ap-chevron"></iconify-icon>
-                                    <img src="{{ storage_asset(optional($record->technician)->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                    <img src="{{ user_avatar(optional($record->technician)->image_path) }}"
                                         class="ap-employee-avatar" alt="">
                                     <div>
                                         <div class="fw-semibold">{{ optional($record->technician)->name ?? '—' }}</div>

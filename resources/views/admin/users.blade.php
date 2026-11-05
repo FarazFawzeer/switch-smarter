@@ -34,7 +34,7 @@
                             <tr id="user-{{ $user->id }}">
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <img src="{{ storage_asset($user->image_path) ?? asset('/images/users/avatar-6.jpg') }}"
+                                        <img src="{{ user_avatar($user->image_path) }}"
                                             alt="{{ $user->name }}" class="avatar-sm rounded-circle">
                                         <div>
                                             <h6 class="mb-0">{{ $user->name }}</h6>

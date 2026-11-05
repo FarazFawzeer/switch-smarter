@@ -77,7 +77,7 @@
                     <td><span class="db-type-pill" style="background: {{ $typeColor }};">{{ $typeLabel }}</span></td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
-                            <img src="{{ storage_asset(optional($job->technician)->image_path) ?? asset('images/users/avatar-6.jpg') }}" class="db-avatar" alt="">
+                            <img src="{{ user_avatar(optional($job->technician)->image_path) }}" class="db-avatar" alt="">
                             <span>{{ optional($job->technician)->name ?? 'Unassigned' }}</span>
                         </div>
                     </td>

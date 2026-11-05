@@ -19,7 +19,7 @@
             {{-- VIEW MODE --}}
             <div id="profileView">
                 <div class="d-flex align-items-center mb-3">
-                    <img src="{{ $user->image_path ? asset($user->image_path) : asset('images/users/avatar-6.jpg') }}"
+                    <img src="{{ user_avatar($user->image_path) }}"
                         alt="Profile Image" class="rounded-circle me-3" style="width:80px;height:80px;object-fit:cover;">
                     <div>
                         <h6 class="mb-1">Name: {{ $user->name }}</h6>

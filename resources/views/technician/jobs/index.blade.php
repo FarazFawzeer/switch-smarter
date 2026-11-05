@@ -76,7 +76,7 @@
 
 {{-- Profile card --}}
 <div class="th-profile-card">
-    <img src="{{ Auth::user()->image_path ? asset(Auth::user()->image_path) : asset('images/users/avatar-17.jpg') }}" alt="">
+    <img src="{{ user_avatar(Auth::user()->image_path) }}" alt="">
     <div>
         <div class="th-profile-name">{{ Auth::user()->name }}</div>
         <div class="th-profile-role">Technician</div>
