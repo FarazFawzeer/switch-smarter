@@ -3,7 +3,25 @@
 @section('content')
     @include('layouts.partials.page-title', ['title' => 'Team', 'subtitle' => 'Team'])
 
+    @php
+        $roleColors = [
+            'Manager' => ['#5B4BC4', 'rgba(91,75,196,0.12)'],
+            'Engineer' => ['#2E6BD8', 'rgba(46,107,216,0.12)'],
+            'Supervisor' => ['#E8890C', 'rgba(232,137,12,0.13)'],
+            'Technician' => ['#0E9F9A', 'rgba(14,159,154,0.12)'],
+        ];
+        $roleColor = fn($type) => $roleColors[$type] ?? ['#8792a2', 'rgba(135,146,162,0.10)'];
+        $wcLabels = \App\Models\User::WORK_CATEGORIES;
+    @endphp
+
     <style>
+                .tm-role-badge { font-weight: 600; }
+        .tm-wc { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: #eef1f6; color: #56606f; white-space: nowrap; }
+        .tm-wc.bd { background: rgba(214,69,69,0.10); color: #c23b3b; }
+        .tm-wc.ppm { background: rgba(46,107,216,0.10); color: #2E6BD8; }
+        .tm-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: #56606f; }
+        .tm-legend span { display: inline-flex; align-items: center; }
+                        a.tm-name.role-name { display: flex; width: fit-content; }
         .tm-stat-card {
             border: none;
             border-radius: 12px;
@@ -249,7 +267,7 @@
     <form method="GET" action="{{ route('admin.team.index') }}" id="filterForm" class="row g-2 mb-3 align-items-end">
         <div class="col-auto">
             <div class="tm-view-toggle d-flex">
-                <a href="{{ request()->fullUrlWithQuery(['view' => 'organization']) }}"
+                <a href="{{ route('admin.team.index', ['view' => 'organization']) }}"
                     class="{{ $view === 'organization' ? 'active' : '' }}">
                     <iconify-icon icon="solar:sitemap-outline"></iconify-icon> Team Organization
                 </a>
@@ -260,26 +278,12 @@
             </div>
         </div>
         <input type="hidden" name="view" value="{{ $view }}">
-        <div class="col-auto">
-            <input type="text" name="search" id="searchInput" class="form-control" style="width: 220px;"
-                placeholder="Search by name, email, or employee ID..." value="{{ request('search') }}" form="filterForm">
-        </div>
-        <div class="col-auto">
-            <select name="type" class="form-select filter-auto" style="width: 160px;" form="filterForm">
-                <option value="">All Roles</option>
-                <option value="Manager" {{ request('type') == 'Manager' ? 'selected' : '' }}>Manager</option>
-                <option value="Engineer" {{ request('type') == 'Engineer' ? 'selected' : '' }}>Engineer</option>
-                <option value="Supervisor" {{ request('type') == 'Supervisor' ? 'selected' : '' }}>Supervisor</option>
-                <option value="Technician" {{ request('type') == 'Technician' ? 'selected' : '' }}>Technician</option>
-            </select>
-        </div>
-        @if (request()->hasAny(['search', 'type']))
-            <div class="col-auto">
-                <a href="{{ route('admin.team.index') }}?view={{ $view }}" class="btn btn-outline-secondary"
-                    title="Clear filters">
-                    <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
-                </a>
-            </div>
+        @if (request('sort'))
+            <input type="hidden" name="sort" value="{{ request('sort') }}">
+            <input type="hidden" name="dir" value="{{ request('dir') }}">
+        @endif
+        @if (request('unassigned'))
+            <input type="hidden" name="unassigned" value="1">
         @endif
         <div class="col-auto ms-auto">
             <a href="{{ route('admin.team.create') }}" class="btn btn-primary">
@@ -290,16 +294,32 @@
 
     @if ($view === 'master')
         {{-- ===== EMPLOYEE MASTER: flat spreadsheet-style list ===== --}}
+        <x-active-filters :filters="[
+            'search' => 'Search',
+            'employee_id' => 'Employee ID',
+            'name' => 'Name',
+            'type' => 'Role',
+            'work_category' => ['Work', $wcLabels],
+            'reports_to' => 'Reports To',
+            'route_id' => ['Route', $routeOptions],
+            'unassigned' => ['Supervisor', ['1' => 'Not assigned']],
+        ]" :keep="['view']" />
+        <div class="tm-legend mb-2">
+            @foreach (array_keys(\App\Models\User::ROLE_COLORS) as $roleName)
+                <span><x-role-bar :type="$roleName" height="14" />{{ $roleName }}</span>
+            @endforeach
+        </div>
         <div class="card tm-card">
             <div class="table-responsive">
                 <table class="tm-master-table">
                     <thead>
                         <tr>
-                            <th>Employee ID</th>
-                            <th>Name</th>
-                            <th>Role</th>
-                            <th>Reports To</th>
-                            <th>Route</th>
+                            <th><x-th-filter label="Employee ID" name="employee_id" sort="employee_id" /></th>
+                            <th><x-th-filter label="Name" name="name" sort="name" placeholder="Name or email…" /></th>
+                            <th><x-th-filter label="Role" name="type" type="select" sort="type" :options="['Manager' => 'Manager', 'Engineer' => 'Engineer', 'Supervisor' => 'Supervisor', 'Technician' => 'Technician']" /></th>
+                            <th><x-th-filter label="Work" name="work_category" type="select" :options="$wcLabels" /></th>
+                            <th><x-th-filter label="Reports To" name="reports_to" /></th>
+                            <th><x-th-filter label="Route" name="route_id" type="select" :options="$routeOptions" /></th>
                             <th>Status</th>
                             <th class="text-center">Action</th>
                         </tr>
@@ -307,27 +327,29 @@
                     <tbody>
                         @forelse($team as $member)
                             @php
-                                $roleColor = match ($member->type) {
-                                    'Manager' => ['#2E5AAC', 'rgba(46,90,172,0.10)'],
-                                    'Engineer' => ['#17A2B8', 'rgba(23,162,184,0.10)'],
-                                    'Supervisor' => ['#F0A202', 'rgba(240,162,2,0.10)'],
-                                    'Technician' => ['#2E9E5B', 'rgba(46,158,91,0.10)'],
-                                    default => ['#8792a2', 'rgba(135,146,162,0.10)'],
-                                };
+                                $rc = $roleColor($member->type);
                                 $reportsTo = match ($member->type) {
                                     'Supervisor' => optional($member->engineer)->name,
                                     'Technician' => optional($member->supervisor)->name,
                                     default => null,
                                 };
                             @endphp
-                            <tr>
+                            <tr style="--tm-role: {{ $rc[0] }};">
                                 <td class="fw-semibold">{{ $member->employee_id ?? '—' }}</td>
                                 <td>
                                     <a href="{{ route('admin.team.show', $member->id) }}"
-                                        class="tm-name text-decoration-none">{{ $member->name }}</a>
+                                        class="tm-name role-name text-decoration-none"><x-role-bar :type="$member->type" />{{ $member->name }}</a>
                                 </td>
-                                <td><span class="badge"
-                                        style="background:{{ $roleColor[1] }}; color:{{ $roleColor[0] }}; font-weight:600;">{{ $member->type }}</span>
+                                <td><span class="badge tm-role-badge"
+                                        style="background:{{ $rc[1] }}; color:{{ $rc[0] }};">{{ $member->type }}</span>
+                                </td>
+                                <td>
+                                    @if (in_array($member->type, ['Supervisor', 'Technician']))
+                                        @php $wc = $member->work_category ?: 'both'; @endphp
+                                        <span class="tm-wc {{ $wc === 'breakdown' ? 'bd' : ($wc === 'ppm' ? 'ppm' : '') }}">{{ $wcLabels[$wc] ?? $wc }}</span>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
                                 </td>
                                 <td>{{ $reportsTo ?? '—' }}</td>
                                 <td>
@@ -360,99 +382,11 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-5">No team members found.</td>
+                                <td colspan="8" class="text-center text-muted py-5">No team members found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
-            </div>
-        </div>
-        <div class="d-flex justify-content-end mt-2">
-            {{ $team->links() }}
-        </div>
-    @elseif($isFiltering)
-        {{-- ===== ORGANIZATION VIEW, SEARCH RESULT: flat table ===== --}}
-        <div class="card tm-card">
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover table-centered mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Employee ID</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Routes</th>
-                                <th>Reports To</th>
-                                <th class="text-center">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($team as $member)
-                                @php
-                                    $roleColor = match ($member->type) {
-                                        'Manager' => ['#2E5AAC', 'rgba(46,90,172,0.10)'],
-                                        'Engineer' => ['#17A2B8', 'rgba(23,162,184,0.10)'],
-                                        'Supervisor' => ['#F0A202', 'rgba(240,162,2,0.10)'],
-                                        'Technician' => ['#2E9E5B', 'rgba(46,158,91,0.10)'],
-                                        default => ['#8792a2', 'rgba(135,146,162,0.10)'],
-                                    };
-                                @endphp
-                                <tr>
-                                    <td>{{ $member->employee_id ?? '—' }}</td>
-                                    <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <img src="{{ user_avatar($member->image_path) }}"
-                                                class="avatar-sm rounded-circle">
-                                            <a href="{{ route('admin.team.show', $member->id) }}"
-                                                class="tm-name">{{ $member->name }}</a>
-                                        </div>
-                                    </td>
-                                    <td class="text-muted">{{ $member->email }}</td>
-                                    <td><span class="badge"
-                                            style="background:{{ $roleColor[1] }}; color:{{ $roleColor[0] }}; font-weight:600;">{{ $member->type }}</span>
-                                    </td>
-                                    <td>
-                                        @forelse($member->routes as $route)
-                                            <span class="tm-pill me-1">{{ $route->route_no }}</span>
-                                        @empty
-                                            <span class="text-muted small">—</span>
-                                        @endforelse
-                                    </td>
-                                    <td class="text-muted">
-                                        @if ($member->type === 'Supervisor')
-                                            {{ optional($member->engineer)->name ?? '—' }}
-                                        @elseif($member->type === 'Technician')
-                                            {{ optional($member->supervisor)->name ?? '—' }}
-                                        @else
-                                            —
-                                        @endif
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="d-flex justify-content-center gap-2">
-                                            <a href="{{ route('admin.team.edit', $member->id) }}"
-                                                class="tm-icon-btn primary" title="Edit">
-                                                <iconify-icon icon="solar:pen-2-outline"
-                                                    style="font-size: 15px;"></iconify-icon>
-                                            </a>
-                                            <button type="button"
-                                                class="tm-icon-btn danger border-0 bg-transparent delete-team"
-                                                data-id="{{ $member->id }}" title="Delete">
-                                                <iconify-icon icon="solar:trash-bin-minimalistic-outline"
-                                                    style="font-size: 15px;"></iconify-icon>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">No matching team members found.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
             </div>
         </div>
         <div class="d-flex justify-content-end mt-2">
@@ -472,7 +406,7 @@
                                     class="avatar-sm rounded-circle">
                                 <div>
                                     <a href="{{ route('admin.team.show', $manager->id) }}"
-                                        class="tm-name d-block">{{ $manager->name }}</a>
+                                        class="tm-name role-name"><x-role-bar type="Manager" />{{ $manager->name }}</a>
                                     <span class="tm-sub">{{ $manager->email }}</span>
                                 </div>
                             </div>
@@ -490,7 +424,7 @@
 
         <div class="accordion" id="engineerAccordion">
             @forelse($engineers as $engineer)
-                <div class="accordion-item tm-accordion-item">
+                <div class="accordion-item tm-accordion-item tm-eng">
                     <h2 class="accordion-header">
                         <button class="accordion-button collapsed tm-accordion-btn" type="button"
                             data-bs-toggle="collapse" data-bs-target="#engineer-{{ $engineer->id }}">
@@ -499,9 +433,9 @@
                                     <img src="{{ user_avatar($engineer->image_path) }}"
                                         class="avatar-sm rounded-circle">
                                     <div>
-                                        <span class="tm-name">{{ $engineer->name }}</span>
+                                        <span class="tm-name role-name"><x-role-bar type="Engineer" />{{ $engineer->name }}</span>
                                         <span class="badge ms-2"
-                                            style="background: rgba(23,162,184,0.10); color:#17A2B8; font-weight:600;">Engineer</span>
+                                            style="background: rgba(46,107,216,0.12); color:#2E6BD8; font-weight:600;">Engineer</span>
                                         @foreach ($engineer->routes as $route)
                                             <span class="tm-pill ms-1">{{ $route->route_no }}</span>
                                         @endforeach
@@ -520,7 +454,7 @@
                             </div>
 
                             @forelse($engineer->supervisors as $supervisor)
-                                <div class="border rounded mb-2" style="background:#fff;">
+                                <div class="border rounded mb-2 tm-sup-box" style="background:#fff;">
                                     <div class="d-flex justify-content-between align-items-center p-2 supervisor-toggle"
                                         data-bs-toggle="collapse" data-bs-target="#supervisor-{{ $supervisor->id }}"
                                         style="cursor:pointer;">
@@ -531,11 +465,14 @@
                                                 class="avatar-sm rounded-circle">
                                             <div>
                                                 <a href="{{ route('admin.team.show', $supervisor->id) }}"
-                                                    class="tm-name d-block"
-                                                    onclick="event.stopPropagation()">{{ $supervisor->name }}</a>
+                                                    class="tm-name role-name"
+                                                    onclick="event.stopPropagation()"><x-role-bar type="Supervisor" />{{ $supervisor->name }}</a>
                                                 <div class="d-flex align-items-center gap-1 flex-wrap">
                                                     <span class="badge"
-                                                        style="background: rgba(240,162,2,0.10); color:#F0A202; font-weight:600;">Supervisor</span>
+                                                        style="background: rgba(232,137,12,0.13); color:#E8890C; font-weight:600;">Supervisor</span>
+                                                    @if (($supervisor->work_category ?? 'both') !== 'both')
+                                                        <span class="tm-wc {{ $supervisor->work_category === 'breakdown' ? 'bd' : 'ppm' }}">{{ $wcLabels[$supervisor->work_category] ?? '' }}</span>
+                                                    @endif
                                                     @foreach ($supervisor->routes as $route)
                                                         <span class="tm-pill">{{ $route->route_no }}</span>
                                                     @endforeach
@@ -548,19 +485,22 @@
                                     <div id="supervisor-{{ $supervisor->id }}" class="collapse">
                                         <div class="px-3 pb-3">
                                             @forelse($supervisor->technicians as $technician)
-                                                <div class="tm-row d-flex justify-content-between align-items-center">
+                                                <div class="tm-row tm-tech-row d-flex justify-content-between align-items-center">
                                                     <div class="d-flex align-items-center gap-2">
                                                         <img src="{{ user_avatar($technician->image_path) }}"
                                                             class="avatar-sm rounded-circle">
                                                         <div>
                                                             <a href="{{ route('admin.team.show', $technician->id) }}"
-                                                                class="tm-name d-block">{{ $technician->name }}</a>
+                                                                class="tm-name role-name"><x-role-bar type="Technician" />{{ $technician->name }}</a>
                                                             <span class="tm-sub">{{ $technician->email }}</span>
                                                         </div>
                                                     </div>
                                                     <div class="d-flex align-items-center gap-2">
                                                         <span class="badge"
-                                                            style="background: rgba(46,158,91,0.10); color:#2E9E5B; font-weight:600;">Technician</span>
+                                                            style="background: rgba(14,159,154,0.12); color:#0E9F9A; font-weight:600;">Technician</span>
+                                                        @if (($technician->work_category ?? 'both') !== 'both')
+                                                            <span class="tm-wc {{ $technician->work_category === 'breakdown' ? 'bd' : 'ppm' }}">{{ $wcLabels[$technician->work_category] ?? '' }}</span>
+                                                        @endif
                                                         @if ($technician->routes->first())
                                                             <span
                                                                 class="tm-pill">{{ $technician->routes->first()->route_no }}</span>
@@ -597,25 +537,12 @@
                 style="background: rgba(240,162,2,0.08); border: 1px solid rgba(240,162,2,0.25); color: #8a6116; border-radius: 10px;">
                 <iconify-icon icon="solar:danger-triangle-outline" style="font-size: 20px; color:#F0A202;"></iconify-icon>
                 <span>{{ $unassignedTechnicianCount }} technician(s) are not yet assigned to a supervisor.</span>
-                <a href="{{ route('admin.team.index') }}?type=Technician" class="ms-1 fw-semibold">View them</a>
+                <a href="{{ route('admin.team.index', ['view' => 'master', 'unassigned' => 1]) }}" class="ms-1 fw-semibold">View them</a>
             </div>
         @endif
     @endif
 
     <script>
-        document.querySelectorAll('.filter-auto').forEach(select => {
-            select.addEventListener('change', function() {
-                document.getElementById('filterForm').submit();
-            });
-        });
-
-        let searchTimeout;
-        document.getElementById('searchInput').addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                document.getElementById('filterForm').submit();
-            }, 600);
-        });
 
         document.querySelectorAll('.supervisor-toggle').forEach(el => {
             const targetId = el.getAttribute('data-bs-target');

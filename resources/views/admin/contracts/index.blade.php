@@ -186,6 +186,7 @@
             padding: 10px 12px;
             border-bottom: 1px solid #f0f1f4;
             vertical-align: middle;
+            white-space: nowrap; /* full text on one line — the table scrolls sideways instead of squeezing */
         }
 
         .ct-list-table tbody tr:hover {
@@ -366,11 +367,14 @@
             </div>
         </div>
         <input type="hidden" name="view" value="{{ $view }}">
-        <div class="col-auto">
-            <input type="text" name="search" id="searchInput" class="form-control" style="width: 220px;"
-                placeholder="Search by project, location, unit ID..." value="{{ request('search') }}" form="filterForm">
-        </div>
+        @foreach (['sort', 'dir'] as $keep)
+            @if (request($keep))<input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">@endif
+        @endforeach
         @if ($view === 'grid')
+            <div class="col-auto">
+                <input type="text" name="search" id="searchInput" class="form-control" style="width: 220px;"
+                    placeholder="Search by project, location, unit ID..." value="{{ request('search') }}" form="filterForm">
+            </div>
             <div class="col-auto">
                 <select name="status" class="form-select filter-auto" style="width: 150px;" form="filterForm">
                     <option value="">All Statuses</option>
@@ -380,7 +384,7 @@
                 </select>
             </div>
         @endif
-        @if (request()->hasAny(['search', 'status', 'project_type', 'engineer_id', 'route_id', 'unit_type', 'elevator_type']))
+        @if ($view === 'grid' && request()->hasAny(['search', 'status']))
             <div class="col-auto">
                 <a href="{{ route('admin.contracts.index') }}?view={{ $view }}" class="btn btn-outline-secondary"
                     title="Clear filters">
@@ -409,6 +413,18 @@
 
     @if ($view === 'list')
         {{-- ===== LIST VIEW: one row per unit, full contract + unit detail ===== --}}
+        <x-active-filters :keep="['view']" :filters="[
+            'search' => 'Search',
+            'f_unit' => 'Unit ID', 'f_unit_no' => 'Unit No', 'f_project' => 'Project',
+            'project_type' => 'Type', 'f_location' => 'Location', 'f_contract' => 'Contract No',
+            'route_id' => ['Route', $routes->pluck('route_no', 'id')->all()],
+            'engineer_id' => ['Engineer', $engineers->pluck('name', 'id')->all()],
+            'f_supervisor' => 'Supervisor', 'f_technician' => 'Technician',
+            'start_from' => 'Start from', 'start_to' => 'Start to', 'end_from' => 'End from', 'end_to' => 'End to',
+            'status' => 'Status', 'unit_type' => 'Unit Type', 'elevator_type' => 'Elevator Type',
+            'f_speed' => 'Speed', 'f_capacity' => 'Capacity', 'f_brand' => 'Brand', 'f_model' => 'Model',
+            'created_from' => 'Created from', 'created_to' => 'Created to',
+        ]" />
         <div class="ct-bulk-bar" id="bulkBar">
             <strong><span id="bulkCount">0</span> row(s) selected</strong>
             <button type="button" class="btn btn-sm btn-outline-danger" id="bulkDeleteUnits">
@@ -428,87 +444,26 @@
                             <th style="width:34px;"><input type="checkbox" class="form-check-input" id="selectAllRows"
                                     title="Select all rows on this page"></th>
                             <th>No</th>
-                            <th>{!! sortLink('identification_no', 'Unit ID', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('unit_number', 'Unit No', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('project_name', 'Project', $sort, $dir) !!}</th>
-                            <th>
-                                {!! sortLink('project_type', 'Type', $sort, $dir) !!}
-                                <div><select class="ct-filter-select filter-auto" name="project_type" form="filterForm">
-                                        <option value="">All</option>
-                                        @foreach ($projectTypes as $type)
-                                            <option value="{{ $type }}"
-                                                {{ request('project_type') == $type ? 'selected' : '' }}>
-                                                {{ $type }}</option>
-                                        @endforeach
-                                    </select></div>
-                            </th>
-                            <th>{!! sortLink('location', 'Location', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('contract_number', 'Contract No', $sort, $dir) !!}</th>
-                            <th>
-                                {!! sortLink('route_no', 'Route', $sort, $dir) !!}
-                                <div><select class="ct-filter-select filter-auto" name="route_id" form="filterForm">
-                                        <option value="">All</option>
-                                        @foreach ($routes as $route)
-                                            <option value="{{ $route->id }}"
-                                                {{ request('route_id') == $route->id ? 'selected' : '' }}>
-                                                {{ $route->route_no }}</option>
-                                        @endforeach
-                                    </select></div>
-                            </th>
-                            <th>
-                                {!! sortLink('engineer_name', 'Engineer', $sort, $dir) !!}
-                                <div><select class="ct-filter-select filter-auto" name="engineer_id" form="filterForm">
-                                        <option value="">All</option>
-                                        @foreach ($engineers as $engineer)
-                                            <option value="{{ $engineer->id }}"
-                                                {{ request('engineer_id') == $engineer->id ? 'selected' : '' }}>
-                                                {{ $engineer->name }}</option>
-                                        @endforeach
-                                    </select></div>
-                            </th>
-                            <th>{!! sortLink('supervisor_name', 'Supervisor', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('technician_name', 'Technician', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('contract_start_date', 'Start', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('contract_end_date', 'End', $sort, $dir) !!}</th>
-                            <th>
-                                {!! sortLink('contract_status', 'Contract Status', $sort, $dir) !!}
-                                <div><select class="ct-filter-select filter-auto" name="status" form="filterForm">
-                                        <option value="">All</option>
-                                        <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>
-                                            Active</option>
-                                        <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }}>
-                                            Expired</option>
-                                        <option value="cancelled"
-                                            {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                                    </select></div>
-                            </th>
-                            <th>
-                                {!! sortLink('unit_type', 'Unit Type', $sort, $dir) !!}
-                                <div><select class="ct-filter-select filter-auto" name="unit_type" form="filterForm">
-                                        <option value="">All</option>
-                                        @foreach ($unitTypes as $type)
-                                            <option value="{{ $type }}"
-                                                {{ request('unit_type') == $type ? 'selected' : '' }}>{{ $type }}
-                                            </option>
-                                        @endforeach
-                                    </select></div>
-                            </th>
-                            <th>
-                                {!! sortLink('elevator_type', 'Elevator Type', $sort, $dir) !!}
-                                <div><select class="ct-filter-select filter-auto" name="elevator_type" form="filterForm">
-                                        <option value="">All</option>
-                                        @foreach ($elevatorTypes as $type)
-                                            <option value="{{ $type }}"
-                                                {{ request('elevator_type') == $type ? 'selected' : '' }}>
-                                                {{ $type }}</option>
-                                        @endforeach
-                                    </select></div>
-                            </th>
-                            <th>{!! sortLink('speed', 'Speed', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('capacity', 'Capacity', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('brand', 'Brand', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('model', 'Model', $sort, $dir) !!}</th>
-                            <th>{!! sortLink('created_at', 'Log Created', $sort, $dir) !!}</th>
+                            <th><x-th-filter label="Unit ID" name="f_unit" sort="identification_no" /></th>
+                            <th><x-th-filter label="Unit No" name="f_unit_no" sort="unit_number" /></th>
+                            <th><x-th-filter label="Project" name="f_project" sort="project_name" /></th>
+                            <th><x-th-filter label="Type" name="project_type" type="select" :options="array_combine($projectTypes, $projectTypes)" sort="project_type" /></th>
+                            <th><x-th-filter label="Location" name="f_location" sort="location" /></th>
+                            <th><x-th-filter label="Contract No" name="f_contract" sort="contract_number" /></th>
+                            <th><x-th-filter label="Route" name="route_id" type="select" :options="$routes->pluck('route_no', 'id')->all()" sort="route_no" /></th>
+                            <th><x-th-filter label="Engineer" name="engineer_id" type="select" :options="$engineers->pluck('name', 'id')->all()" sort="engineer_name" /></th>
+                            <th><x-th-filter label="Supervisor" name="f_supervisor" sort="supervisor_name" /></th>
+                            <th><x-th-filter label="Technician" name="f_technician" sort="technician_name" /></th>
+                            <th><x-th-filter label="Start" type="daterange" from="start_from" to="start_to" sort="contract_start_date" /></th>
+                            <th><x-th-filter label="End" type="daterange" from="end_from" to="end_to" sort="contract_end_date" /></th>
+                            <th><x-th-filter label="Contract Status" name="status" type="select" :options="['active' => 'Active', 'expired' => 'Expired', 'cancelled' => 'Cancelled']" sort="contract_status" /></th>
+                            <th><x-th-filter label="Unit Type" name="unit_type" type="select" :options="array_combine($unitTypes, $unitTypes)" sort="unit_type" /></th>
+                            <th><x-th-filter label="Elevator Type" name="elevator_type" type="select" :options="array_combine($elevatorTypes, $elevatorTypes)" sort="elevator_type" /></th>
+                            <th><x-th-filter label="Speed" name="f_speed" sort="speed" /></th>
+                            <th><x-th-filter label="Capacity" name="f_capacity" sort="capacity" /></th>
+                            <th><x-th-filter label="Brand" name="f_brand" sort="brand" /></th>
+                            <th><x-th-filter label="Model" name="f_model" sort="model" /></th>
+                            <th><x-th-filter label="Log Created" type="daterange" from="created_from" to="created_to" sort="created_at" /></th>
                             <th class="text-center">Action</th>
                         </tr>
                     </thead>
@@ -845,12 +800,47 @@
         });
 
         let searchTimeout;
-        document.getElementById('searchInput').addEventListener('input', function() {
+        document.getElementById('searchInput')?.addEventListener('input', function() {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
                 document.getElementById('filterForm').submit();
             }, 600);
         });
+
+        // Delete one project. A project with recorded work is blocked — except for a Super Admin,
+        // who can force it after typing the project name exactly.
+        function deleteProject(contractId, extra) {
+            fetch("{{ url('admin/contracts') }}/" + contractId, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': "{{ csrf_token() }}", 'Accept': 'application/json' },
+                    body: JSON.stringify(extra)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire('Deleted!', data.message, 'success').then(() => location.reload());
+                        return;
+                    }
+                    if (!data.can_force) {
+                        Swal.fire('Cannot delete', data.message, 'error');
+                        return;
+                    }
+                    Swal.fire({
+                        title: 'Delete project with work history?',
+                        html: `<p class="small mb-2">${data.message.replace(/</g, '&lt;')}</p>
+                               <p class="small mb-1">Type the project name to confirm: <strong>${data.project.replace(/</g, '&lt;')}</strong></p>`,
+                        input: 'text',
+                        inputPlaceholder: 'Project name',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        confirmButtonText: 'Delete permanently',
+                        inputValidator: value => value.trim() !== data.project.trim() ? 'The name does not match.' : undefined
+                    }).then(r => {
+                        if (r.isConfirmed) deleteProject(contractId, { force: true, confirm_name: r.value });
+                    });
+                });
+        }
 
         document.querySelectorAll('.delete-contract').forEach(button => {
             button.addEventListener('click', function() {
@@ -864,24 +854,7 @@
                     cancelButtonColor: '#3085d6',
                     confirmButtonText: 'Yes, delete it!'
                 }).then((result) => {
-                    if (result.isConfirmed) {
-                        fetch("{{ url('admin/contracts') }}/" + contractId, {
-                                method: 'DELETE',
-                                headers: {
-                                    'X-CSRF-TOKEN': "{{ csrf_token() }}",
-                                    'Accept': 'application/json'
-                                }
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.success) {
-                                    Swal.fire('Deleted!', data.message, 'success').then(() =>
-                                        location.reload());
-                                } else {
-                                    Swal.fire('Cannot delete', data.message, 'error');
-                                }
-                            });
-                    }
+                    if (result.isConfirmed) deleteProject(contractId, {});
                 });
             });
         });

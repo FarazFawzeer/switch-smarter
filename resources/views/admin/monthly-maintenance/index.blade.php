@@ -176,75 +176,32 @@
         </div>
     </div>
 
-    {{-- Filters --}}
-    <div class="card mm-card mb-3">
-        <div class="card-body">
-            <form method="GET" action="{{ route('admin.monthly-maintenance.index') }}" id="filterForm"
-                class="row g-2 align-items-end">
-                <input type="hidden" name="month" value="{{ $month }}">
-                <input type="hidden" name="year" value="{{ $year }}">
+    {{-- Filters live in the column headings; this form just carries them --}}
+    @php
+        $statusOptions = ['completed' => 'Completed', 'in_progress' => 'In Progress', 'pending' => 'Pending', 'overdue' => 'Overdue'];
+        $engineerOptions = $engineers->pluck('name', 'id')->all();
+        $technicianOptions = $technicians->mapWithKeys(fn ($t) => [$t->id => $t->name . ($t->employee_id ? ' (' . $t->employee_id . ')' : '')])->all();
+        $routeOptions = $routes->pluck('route_no', 'id')->all();
+    @endphp
+    <form method="GET" action="{{ route('admin.monthly-maintenance.index') }}" id="filterForm">
+        <input type="hidden" name="month" value="{{ $month }}">
+        <input type="hidden" name="year" value="{{ $year }}">
+        @foreach (['sort', 'dir'] as $keep)
+            @if (request($keep))<input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">@endif
+        @endforeach
+    </form>
 
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Search</label>
-                    <input type="text" name="search" id="searchInput" class="form-control form-control-sm"
-                        style="width: 200px;" placeholder="Project or unit ID..." value="{{ request('search') }}">
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Engineer</label>
-                    <select name="engineer_id" class="form-select form-select-sm filter-auto" style="width: 170px;">
-                        <option value="">All Engineers</option>
-                        @foreach ($engineers as $engineer)
-                            <option value="{{ $engineer->id }}"
-                                {{ request('engineer_id') == $engineer->id ? 'selected' : '' }}>{{ $engineer->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Technician</label>
-                    <select name="technician_id" class="form-select form-select-sm filter-auto" style="width: 190px;">
-                        <option value="">All Technicians</option>
-                        @foreach ($technicians as $technician)
-                            <option value="{{ $technician->id }}"
-                                {{ request('technician_id') == $technician->id ? 'selected' : '' }}>
-                                {{ $technician->name }}{{ $technician->employee_id ? ' (' . $technician->employee_id . ')' : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Route</label>
-                    <select name="route_id" class="form-select form-select-sm filter-auto" style="width: 150px;">
-                        <option value="">All Routes</option>
-                        @foreach ($routes as $route)
-                            <option value="{{ $route->id }}"
-                                {{ request('route_id') == $route->id ? 'selected' : '' }}>{{ $route->route_no }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Status</label>
-                    <select name="status" class="form-select form-select-sm filter-auto" style="width: 150px;">
-                        <option value="">All Statuses</option>
-                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed
-                        </option>
-                        <option value="in_progress" {{ request('status') == 'in_progress' ? 'selected' : '' }}>In Progress
-                        </option>
-                        <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="overdue" {{ request('status') == 'overdue' ? 'selected' : '' }}>Overdue</option>
-                    </select>
-                </div>
-                @if (request()->hasAny(['search', 'engineer_id', 'technician_id', 'route_id', 'status']))
-                    <div class="col-auto">
-                        <a href="{{ route('admin.monthly-maintenance.index', ['month' => $month, 'year' => $year]) }}"
-                            class="btn btn-outline-secondary btn-sm" title="Clear filters">
-                            <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
-                        </a>
-                    </div>
-                @endif
-            </form>
-        </div>
-    </div>
+    <x-active-filters :keep="['month', 'year']" :filters="[
+        'search' => 'Search',
+        'project' => 'Project',
+        'unit' => 'Unit',
+        'route_id' => ['Route', $routeOptions],
+        'engineer_id' => ['Engineer', $engineerOptions],
+        'technician_id' => ['Technician', $technicianOptions],
+        'date_from' => 'From',
+        'date_to' => 'To',
+        'status' => ['Status', $statusOptions],
+    ]" />
 
     {{-- Job list --}}
     <div class="card mm-card">
@@ -253,13 +210,13 @@
                 <thead>
                     <tr>
                         <th>No</th>
-                        <th>Project</th>
-                        <th>Unit</th>
-                        <th>Route</th>
-                        <th>Engineer</th>
-                        <th>Technician</th>
-                        <th>Scheduled Date</th>
-                        <th>Status</th>
+                        <th><x-th-filter label="Project" name="project" sort="project" /></th>
+                        <th><x-th-filter label="Unit" name="unit" sort="unit" placeholder="Unit ID or unit no" /></th>
+                        <th><x-th-filter label="Route" name="route_id" type="select" :options="$routeOptions" /></th>
+                        <th><x-th-filter label="Engineer" name="engineer_id" type="select" :options="$engineerOptions" /></th>
+                        <th><x-th-filter label="Technician" name="technician_id" type="select" :options="$technicianOptions" /></th>
+                        <th><x-th-filter label="Scheduled Date" type="daterange" from="date_from" to="date_to" sort="date" /></th>
+                        <th><x-th-filter label="Status" name="status" type="select" :options="$statusOptions" /></th>
                         <th class="text-center">Action</th>
                     </tr>
                 </thead>
@@ -296,7 +253,12 @@
                             <td>{{ optional(optional($job->contract)->route)->route_no ?? '—' }}</td>
                             <td>{{ optional(optional($job->contract)->engineer)->name ?? '—' }}</td>
                             <td>{{ optional($job->technician)->name ?? 'Unassigned' }}</td>
-                            <td>{{ $job->scheduled_date->format('d M Y') }}</td>
+                            <td>
+                                {{ $job->scheduled_date->format('d M Y') }}
+                                @foreach ($visitWarnings[$job->id] ?? [] as $warning)
+                                    <div class="visit-warn" title="The date is kept — reschedule if needed"><x-ui-icon name="alert" size="12" stroke="2.4" /> {{ $warning }}</div>
+                                @endforeach
+                            </td>
                             <td><span class="mm-pill" style="background:{{ $color }};">{{ $label }}</span>
                             </td>
                             <td class="text-center">
@@ -304,6 +266,7 @@
                                     class="btn btn-sm btn-outline-primary">
                                     View
                                 </a>
+                                <x-mark-complete-btn :job="$job" />
                             </td>
                         </tr>
                     @empty
@@ -324,6 +287,8 @@
         {{ $jobs->links() }}
     </div>
 
+    @include('admin.partials.timesheet-adjust-script')
+
     <script>
         document.querySelectorAll('.filter-auto').forEach(select => {
             select.addEventListener('change', function() {
@@ -333,12 +298,5 @@
             });
         });
 
-        let searchTimeout;
-        document.getElementById('searchInput').addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                document.getElementById('filterForm').submit();
-            }, 600);
-        });
-    </script>
+</script>
 @endsection

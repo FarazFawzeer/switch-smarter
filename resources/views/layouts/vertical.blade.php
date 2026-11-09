@@ -29,6 +29,7 @@
     </div>
 
     @include('layouts.partials/vendor-scripts')
+    <script src="{{ asset('js/table-filters.js') }}?v={{ @filemtime(public_path('js/table-filters.js')) }}"></script>
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     @stack('scripts')
 

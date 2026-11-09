@@ -49,10 +49,7 @@ class AttendanceCalculator
         $otHours = 0;
         $shift = $technician->shift;
         if ($checkOut && $shift) {
-            $shiftEnd = Carbon::parse($day->toDateString() . ' ' . $shift->end_time);
-            if ($shift->end_time < $shift->start_time) {
-                $shiftEnd->addDay();
-            }
+            $shiftEnd = $shift->endFor($checkIn);
             if ($checkOut->gt($shiftEnd)) {
                 $otHours = round($shiftEnd->diffInMinutes($checkOut) / 60, 2);
             }

@@ -130,40 +130,27 @@
 
     <div class="card sh-card mb-3">
         <div class="card-body">
-            <form method="GET" action="{{ route('admin.scheduling.show', $contract->id) }}" id="unitFilterForm" class="row g-2 mb-3">
-                @if(request('unit_id'))
-                    <input type="hidden" name="unit_id" value="{{ request('unit_id') }}">
-                @endif
-                <div class="col-md-6">
-                    <input type="text" name="unit_search" id="unitSearchInput" class="form-control form-control-sm"
-                        placeholder="Search by unit ID (e.g. LP-A-01)..." value="{{ request('unit_search') }}">
-                </div>
-                <div class="col-md-4">
-                    <select name="unit_status" id="unitStatusFilter" class="form-select form-select-sm">
-                        <option value="">All Statuses</option>
-                        <option value="completed" {{ request('unit_status') == 'completed' ? 'selected' : '' }}>Completed</option>
-                        <option value="pending" {{ request('unit_status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="overdue" {{ request('unit_status') == 'overdue' ? 'selected' : '' }}>Overdue</option>
-                        <option value="unscheduled" {{ request('unit_status') == 'unscheduled' ? 'selected' : '' }}>Not scheduled yet</option>
-                        <option value="none" {{ request('unit_status') == 'none' ? 'selected' : '' }}>No visit this month</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    @if(request()->hasAny(['unit_search', 'unit_status']))
-                        <a href="{{ route('admin.scheduling.show', $contract->id) }}" class="btn btn-outline-secondary btn-sm w-100">
-                            Clear
-                        </a>
-                    @endif
-                </div>
-            </form>
+            @php
+                $unitStatusOptions = ['completed' => 'Completed', 'pending' => 'Pending', 'overdue' => 'Overdue', 'unscheduled' => 'Not scheduled yet', 'none' => 'No visit this month'];
+                $unitOptions = $contract->elevatorUnits->mapWithKeys(fn($u) => [$u->id => $u->identification_no . ($u->unit_number ? ' (' . $u->unit_number . ')' : '')])->all();
+            @endphp
+            {{-- one GET form for both tables; the filters live in the column headings --}}
+            <form method="GET" action="{{ route('admin.scheduling.show', $contract->id) }}" id="filterForm"></form>
+            <x-active-filters :filters="[
+                'unit_search' => 'Unit',
+                'unit_status' => ['This month', $unitStatusOptions],
+                'unit_id' => ['Visits for', $unitOptions],
+                'from' => 'From',
+                'to' => 'To',
+            ]" />
 
             <div class="table-responsive">
                 <table class="sched-table mb-0">
                     <thead>
                         <tr>
-                            <th>Unit</th>
+                            <th><x-th-filter label="Unit" name="unit_search" placeholder="Unit ID e.g. LP-A-01" /></th>
                             <th>Type</th>
-                            <th>This Month</th>
+                            <th><x-th-filter label="This Month" name="unit_status" type="select" :options="$unitStatusOptions" /></th>
                             <th>Overdue</th>
                             <th class="text-center">Actions</th>
                         </tr>
@@ -229,44 +216,13 @@
     {{-- Full schedule with filters --}}
     <div class="card sh-card">
         <div class="card-body">
-            <form method="GET" action="{{ route('admin.scheduling.show', $contract->id) }}" id="jobFilterForm" class="row g-2 mb-3 align-items-end">
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Unit</label>
-                    <select name="unit_id" class="form-select form-select-sm filter-auto" style="width: 180px;">
-                        <option value="">All Units</option>
-                        @foreach($contract->elevatorUnits as $unit)
-                            <option value="{{ $unit->id }}" {{ request('unit_id') == $unit->id ? 'selected' : '' }}>
-                                {{ $unit->identification_no }}{{ $unit->unit_number ? ' (' . $unit->unit_number . ')' : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">From date</label>
-                    <input type="date" name="from" class="form-control form-control-sm" value="{{ request('from') }}">
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">To date</label>
-                    <input type="date" name="to" class="form-control form-control-sm" value="{{ request('to') }}">
-                </div>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
-                </div>
-                @if($isFiltering)
-                    <div class="col-auto">
-                        <a href="{{ route('admin.scheduling.show', $contract->id) }}" class="btn btn-outline-secondary btn-sm">
-                            <iconify-icon icon="solar:close-circle-outline"></iconify-icon> Reset to Default
-                        </a>
-                    </div>
-                @endif
-            </form>
 
             <p class="text-muted small mb-2">
     @if(request('from') || request('to'))
         Showing {{ $visibleJobs->count() }} of {{ $totalJobsCount }} total scheduled visits (custom date range).
     @elseif(request('unit_id'))
         Showing {{ now()->format('F Y') }}'s visit for this unit ({{ $visibleJobs->count() }} record{{ $visibleJobs->count() == 1 ? '' : 's' }}).
-        Use the date range above to view its full history.
+        Use the <strong>Scheduled Date</strong> filter to view its full history.
     @else
         Showing visits through {{ now()->format('F Y') }}
         ({{ $visibleJobs->count() }} of {{ $totalJobsCount }} total scheduled visits across all units).
@@ -278,8 +234,8 @@
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Unit</th>
-                            <th>Scheduled Date</th>
+                            <th><x-th-filter label="Unit" name="unit_id" type="select" :options="$unitOptions" /></th>
+                            <th><x-th-filter label="Scheduled Date" type="daterange" from="from" to="to" /></th>
                             <th>Technician</th>
                             <th>Status</th>
                             <th class="text-center">Action</th>
@@ -297,6 +253,9 @@
                                 </td>
                                 <td>
                                     {{ $job->scheduled_date->format('d M Y') }}
+                                    @foreach ($visitWarnings[$job->id] ?? [] as $warning)
+                                        <div class="visit-warn" title="The date is kept — reschedule if needed"><x-ui-icon name="alert" size="12" stroke="2.4" /> {{ $warning }}</div>
+                                    @endforeach
                                     @if($job->reschedules->isNotEmpty())
                                         <div class="sched-moved-note">
                                             Moved from {{ $job->reschedules->first()->old_date->format('d M Y') }}
@@ -417,15 +376,6 @@
     @endif
 
     <script>
-        document.querySelectorAll('.filter-auto').forEach(select => {
-            select.addEventListener('change', function() {
-                document.getElementById('jobFilterForm').submit();
-            });
-        });
-
-        document.getElementById('unitStatusFilter').addEventListener('change', function() {
-            document.getElementById('unitFilterForm').submit();
-        });
 
         function postAction(url, body) {
             return fetch(url, {
@@ -515,12 +465,5 @@
             });
         });
 
-        let unitSearchTimeout;
-        document.getElementById('unitSearchInput').addEventListener('input', function() {
-            clearTimeout(unitSearchTimeout);
-            unitSearchTimeout = setTimeout(() => {
-                document.getElementById('unitFilterForm').submit();
-            }, 600);
-        });
     </script>
 @endsection

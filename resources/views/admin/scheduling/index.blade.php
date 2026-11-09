@@ -88,7 +88,8 @@
 
             @if($view === 'calendar')
                 <select name="route_id" form="calMonthForm" class="form-select form-select-sm filter-auto" style="width: 150px;">
-                    <option value="">All Routes</option>
+                    <option value="" {{ $needsRoute ? 'selected' : '' }} disabled>Select route…</option>
+                    <option value="all" {{ request('route_id') === 'all' ? 'selected' : '' }}>All routes</option>
                     @foreach($routes as $route)
                         <option value="{{ $route->id }}" {{ request('route_id') == $route->id ? 'selected' : '' }}>{{ $route->route_no }}</option>
                     @endforeach
@@ -109,7 +110,27 @@
         </div>
     </div>
 
-    @if($view === 'calendar')
+
+    {{-- Route first: scheduling tasks only show for the selected route --}}
+    @if ($needsRoute)
+        <div class="card sc-card">
+            <div class="card-body text-center py-5">
+                <div class="mx-auto mb-3 d-flex align-items-center justify-content-center" style="width:56px;height:56px;border-radius:50%;background:color-mix(in srgb, var(--ss-primary) 12%, transparent);color:var(--ss-primary);">
+                    <x-ui-icon name="route" size="26" />
+                </div>
+                <h5 class="mb-1">Select a route</h5>
+                <p class="text-muted small mb-4">Scheduling tasks are shown route by route. Choose the route you want to work on.</p>
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    @foreach ($routes as $route)
+                        <a href="{{ request()->fullUrlWithQuery(['route_id' => $route->id, 'page' => null]) }}" class="btn btn-sm btn-outline-primary">{{ $route->route_no }}</a>
+                    @endforeach
+                    <a href="{{ request()->fullUrlWithQuery(['route_id' => 'all', 'page' => null]) }}" class="btn btn-sm btn-light border">All routes</a>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if($view === 'calendar' && ! $needsRoute)
         {{-- ===== CALENDAR VIEW ===== --}}
         @php
             $pillColors = ['#DCEFDA', '#DCEEF7', '#F7E9D9', '#F3DCEF', '#DCEEF0', '#EFEBDC', '#E3DCF7'];
@@ -133,9 +154,9 @@
                                     $colorIndex = $job->contract_id % count($pillColors);
                                 @endphp
                                 <a href="{{ route('admin.scheduling.show', $job->contract_id) }}?unit_id={{ $job->elevator_unit_id }}"
-                                    class="sc-cal-pill" style="background:{{ $pillColors[$colorIndex] }}; color:{{ $pillTextColors[$colorIndex] }};"
-                                    title="{{ optional($job->unit)->identification_no }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }} — {{ optional($job->contract)->project_name }} — {{ optional($job->technician)->name ?? 'Unassigned' }}">
-                                    {{ optional($job->unit)->identification_no }}
+                                    class="sc-cal-pill {{ $job->warnings ? 'has-warn' : '' }}" style="background:{{ $pillColors[$colorIndex] }}; color:{{ $pillTextColors[$colorIndex] }};"
+                                    title="{{ optional($job->unit)->identification_no }}{{ optional($job->unit)->unit_number ? ' (' . $job->unit->unit_number . ')' : '' }} — {{ optional($job->contract)->project_name }} — {{ optional($job->technician)->name ?? 'Unassigned' }}{{ $job->warnings ? ' — ⚠ ' . implode(', ', $job->warnings) : '' }}">
+                                    @if ($job->warnings)<span class="sc-warn-dot">!</span>@endif{{ optional($job->unit)->identification_no }}
                                 </a>
                             @endforeach
 
@@ -156,54 +177,30 @@
             });
         </script>
 
-    @else
-        {{-- ===== LIST VIEW (unchanged) ===== --}}
-        <form method="GET" action="{{ route('admin.scheduling.index') }}" id="filterForm" class="row g-2 mb-3 justify-content-end align-items-end">
+    @elseif(! $needsRoute)
+        {{-- ===== LIST VIEW — filters live in the column headings ===== --}}
+        @php
+            $routeOptions = ['all' => 'All routes'] + $routes->pluck('route_no', 'id')->all();
+            $engineerOptions = $engineers->pluck('name', 'id')->all();
+            $supervisorOptions = $supervisors->pluck('name', 'id')->all();
+            $technicianOptions = $technicians->pluck('name', 'id')->all();
+            $scheduledOptions = ['yes' => 'Fully Scheduled', 'partial' => 'Partially Scheduled', 'no' => 'Not Scheduled'];
+        @endphp
+        <form method="GET" action="{{ route('admin.scheduling.index') }}" id="filterForm">
             <input type="hidden" name="view" value="list">
-            <div class="col-auto">
-                <input type="text" name="search" id="searchInput" class="form-control" style="width: 200px;"
-                    placeholder="Search by project or location..." value="{{ request('search') }}">
-            </div>
-            <div class="col-auto">
-                <select name="engineer_id" class="form-select filter-auto" style="width: 160px;">
-                    <option value="">All Engineers</option>
-                    @foreach($engineers as $engineer)
-                        <option value="{{ $engineer->id }}" {{ request('engineer_id') == $engineer->id ? 'selected' : '' }}>{{ $engineer->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-auto">
-                <select name="supervisor_id" class="form-select filter-auto" style="width: 170px;">
-                    <option value="">All Supervisors</option>
-                    @foreach($supervisors as $supervisor)
-                        <option value="{{ $supervisor->id }}" {{ request('supervisor_id') == $supervisor->id ? 'selected' : '' }}>{{ $supervisor->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-auto">
-                <select name="technician_id" class="form-select filter-auto" style="width: 170px;">
-                    <option value="">All Technicians</option>
-                    @foreach($technicians as $technician)
-                        <option value="{{ $technician->id }}" {{ request('technician_id') == $technician->id ? 'selected' : '' }}>{{ $technician->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-auto">
-                <select name="scheduled" class="form-select filter-auto" style="width: 170px;">
-                    <option value="">All Contracts</option>
-                    <option value="yes" {{ request('scheduled') == 'yes' ? 'selected' : '' }}>Fully Scheduled</option>
-                    <option value="partial" {{ request('scheduled') == 'partial' ? 'selected' : '' }}>Partially Scheduled</option>
-                    <option value="no" {{ request('scheduled') == 'no' ? 'selected' : '' }}>Not Scheduled</option>
-                </select>
-            </div>
-            @if(request()->hasAny(['search', 'engineer_id', 'supervisor_id', 'technician_id', 'scheduled']))
-                <div class="col-auto">
-                    <a href="{{ route('admin.scheduling.index') }}" class="btn btn-outline-secondary" title="Clear filters">
-                        <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
-                    </a>
-                </div>
-            @endif
+            @foreach (['sort', 'dir'] as $keep)
+                @if (request($keep))<input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">@endif
+            @endforeach
         </form>
+
+        <x-active-filters :keep="['view', 'route_id']" :filters="[
+            'search' => 'Search',
+            'project' => 'Project',
+            'engineer_id' => ['Engineer', $engineerOptions],
+            'supervisor_id' => ['Supervisor', $supervisorOptions],
+            'technician_id' => ['Technician', $technicianOptions],
+            'scheduled' => ['Status', $scheduledOptions],
+        ]" />
 
         <div class="card sc-card">
             <div class="table-responsive">
@@ -211,13 +208,13 @@
                     <thead>
                         <tr>
                             <th>S/N</th>
-                            <th>Project</th>
-                            <th>Engineer</th>
-                            <th>Route</th>
-                            <th>Supervisor</th>
-                            <th>Technician</th>
+                            <th><x-th-filter label="Project" name="project" sort="project_name" /></th>
+                            <th><x-th-filter label="Engineer" name="engineer_id" type="select" :options="$engineerOptions" /></th>
+                            <th><x-th-filter label="Route" name="route_id" type="select" :options="$routeOptions" /></th>
+                            <th><x-th-filter label="Supervisor" name="supervisor_id" type="select" :options="$supervisorOptions" /></th>
+                            <th><x-th-filter label="Technician" name="technician_id" type="select" :options="$technicianOptions" /></th>
                             <th>Units</th>
-                            <th>Contract Status</th>
+                            <th><x-th-filter label="Contract Status" name="scheduled" type="select" :options="$scheduledOptions" /></th>
                             <th class="text-center">Action</th>
                         </tr>
                     </thead>
@@ -305,13 +302,6 @@
                 });
             });
 
-            let searchTimeout;
-            document.getElementById('searchInput').addEventListener('input', function() {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    document.getElementById('filterForm').submit();
-                }, 600);
-            });
-        </script>
+</script>
     @endif
 @endsection

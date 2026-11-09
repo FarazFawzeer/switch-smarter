@@ -334,6 +334,52 @@
         function showError(msg) { messageBox.innerHTML = `<div class="alert alert-danger">${msg}</div>`; window.scrollTo({top:0, behavior:'smooth'}); }
         function showSuccess(msg) { messageBox.innerHTML = `<div class="alert alert-success">${msg}</div>`; }
 
+        // ===== Photos: shrink on the phone before upload =====
+        // Phone photos are often 3-8 MB (too big for a slow connection and the 5 MB limit) and
+        // iPhone gallery photos can be HEIC. Re-draw as a normal JPEG, max 1600px (~200-500 KB).
+        async function compressPhoto(file) {
+            if (!file || !file.type.startsWith('image/')) return file;
+            try {
+                const bitmap = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = URL.createObjectURL(file);
+                });
+                const scale = Math.min(1, 1600 / Math.max(bitmap.naturalWidth, bitmap.naturalHeight));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(bitmap.naturalWidth * scale);
+                canvas.height = Math.round(bitmap.naturalHeight * scale);
+                canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(bitmap.src);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+                if (!blob) return file;
+                return new File([blob], (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+            } catch (e) {
+                return file; // the browser couldn't read it — send the original and let the server decide
+            }
+        }
+
+        // ===== Sending: always get a clear message back, even on a weak connection =====
+        async function postForm(url, formData) {
+            let response;
+            try {
+                response = await fetch(url, {
+                    method: 'POST', body: formData,
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                });
+            } catch (e) {
+                throw new Error('No internet connection right now. Your entries are kept — move to a better signal and tap again.');
+            }
+            if (response.status === 401 || response.status === 419) throw new Error('Your session has expired. Please log in again.');
+            if (response.status === 413) throw new Error('The photo is too large to upload. Please take the photo again.');
+            let data = null;
+            try { data = await response.json(); } catch (e) { /* not JSON */ }
+            if (!data) throw new Error('The server did not respond properly (error ' + response.status + '). Please try again.');
+            if (!data.success) throw new Error(Object.values(data.errors || {}).flat().join('<br>') || data.message || 'Something went wrong. Please try again.');
+            return data;
+        }
+
         // ===== Reverse geocoding (free, no API key) — used for both display and history =====
         async function reverseGeocode(lat, lng) {
             try {
@@ -419,26 +465,59 @@
             hasSignature = false;
         });
 
+        // ===== Location =====
+        // GPS works without internet, but a precise first fix can be slow (more so when mobile data
+        // is throttled, as A-GPS helper data downloads slowly). So: start listening as soon as the
+        // page opens, keep the best recent fix, use it instantly when the technician taps, and fall
+        // back to a quicker network/Wi-Fi fix if a precise one doesn't come in time.
+        let bestFix = null, bestFixAt = 0, geoWatchId = null, lastGeoError = null;
+
+        function rememberFix(pos) {
+            const fix = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy };
+            const stale = Date.now() - bestFixAt > 60000;
+            if (!bestFix || stale || fix.accuracy <= bestFix.accuracy) { bestFix = fix; bestFixAt = Date.now(); }
+        }
+
+        function startWatchingLocation() {
+            if (!navigator.geolocation || geoWatchId !== null) return;
+            geoWatchId = navigator.geolocation.watchPosition(rememberFix, err => { lastGeoError = err; },
+                { enableHighAccuracy: true, maximumAge: 30000, timeout: 60000 });
+        }
+
+        function locationErrorText() {
+            if (lastGeoError && lastGeoError.code === 1) return 'Location permission is blocked. Allow location for this site in your browser settings, then try again.';
+            return 'Could not get your location. Turn on Location/GPS and try again (outdoors works best).';
+        }
+
         function getLocation() {
             return new Promise((resolve, reject) => {
-                if (!navigator.geolocation) { reject('Location not supported on this device.'); return; }
-                let best = null;
-                const watchId = navigator.geolocation.watchPosition(
-                    pos => {
-                        if (!best || pos.coords.accuracy < best.accuracy) {
-                            best = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy };
-                        }
-                        if (pos.coords.accuracy <= 50) { navigator.geolocation.clearWatch(watchId); resolve(best); }
-                    },
-                    () => { navigator.geolocation.clearWatch(watchId); reject('Could not access your location.'); },
-                    { enableHighAccuracy: true, maximumAge: 0 }
-                );
-                setTimeout(() => {
-                    navigator.geolocation.clearWatch(watchId);
-                    best ? resolve(best) : reject('Could not get a location fix.');
-                }, 8000);
+                if (!navigator.geolocation) { reject('Location is not supported on this device.'); return; }
+
+                // a good fix from the last 2 minutes is used straight away
+                if (bestFix && Date.now() - bestFixAt < 120000 && bestFix.accuracy <= 100) { resolve(bestFix); return; }
+
+                startWatchingLocation();
+                const startedAt = Date.now();
+                const timer = setInterval(() => {
+                    const waited = Date.now() - startedAt;
+                    if (lastGeoError && lastGeoError.code === 1) { clearInterval(timer); reject(locationErrorText()); return; }
+                    if (bestFix && (bestFix.accuracy <= 60 || waited > 12000)) { clearInterval(timer); resolve(bestFix); return; }
+                    if (waited > 20000) {
+                        clearInterval(timer);
+                        // last resort: quick, less precise network/Wi-Fi location (or a cached one up to 10 min old)
+                        navigator.geolocation.getCurrentPosition(
+                            pos => { rememberFix(pos); resolve(bestFix); },
+                            () => reject(locationErrorText()),
+                            { enableHighAccuracy: false, maximumAge: 600000, timeout: 15000 }
+                        );
+                    }
+                }, 500);
             });
         }
+
+        @if($job->status !== 'completed')
+            startWatchingLocation(); // warm up GPS while the technician fills the form
+        @endif
 
         // ===== Start flow: photo → auto-fetch location → show it → submit → unlock form =====
         const startPhotoInput = document.getElementById('startPhotoInput');
@@ -472,28 +551,18 @@
             label.textContent = 'Starting...';
 
             const formData = new FormData();
-            formData.append('start_photo', startPhoto);
+            formData.append('start_photo', await compressPhoto(startPhoto));
             formData.append('latitude', loc.latitude);
             formData.append('longitude', loc.longitude);
 
-            fetch("{{ route('technician.activities.start', $job->id) }}", {
-                    method: 'POST', body: formData, headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        window.location.reload();
-                    } else {
-                        showError(Object.values(data.errors).flat().join('<br>'));
-                        label.textContent = 'Take Photo & Start';
-                        startPhotoInput.value = '';
-                    }
-                })
-                .catch(() => {
-                    showError('Something went wrong. Please try again.');
-                    label.textContent = 'Take Photo & Start';
-                    startPhotoInput.value = '';
-                });
+            try {
+                await postForm("{{ route('technician.activities.start', $job->id) }}", formData);
+                window.location.reload();
+            } catch (err) {
+                showError(err.message);
+                label.textContent = 'Take Photo & Start';
+                startPhotoInput.value = '';
+            }
         });
 
         // ===== Save as Draft =====
@@ -501,16 +570,12 @@
             const btn = this;
             btn.disabled = true;
             const formData = new FormData(document.getElementById('activityForm'));
+            formData.delete('completion_photo'); // a draft doesn't upload the photo
 
-            fetch("{{ route('technician.activities.save-draft', $job->id) }}", {
-                    method: 'POST', body: formData, headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
-                })
-                .then(r => r.json())
-                .then(data => {
-                    btn.disabled = false;
-                    if (data.success) { showSuccess(data.message); setTimeout(() => window.location.href = "{{ route('technician.jobs.index') }}", 1000); }
-                    else { showError(Object.values(data.errors).flat().join('<br>')); }
-                });
+            postForm("{{ route('technician.activities.save-draft', $job->id) }}", formData)
+                .then(data => { showSuccess(data.message); setTimeout(() => window.location.href = "{{ route('technician.jobs.index') }}", 1000); })
+                .catch(err => showError(err.message))
+                .finally(() => { btn.disabled = false; });
         });
 
         // ===== Complete flow: requires photo + signature → auto-fetch location → show it → submit =====
@@ -556,18 +621,19 @@
             btn.innerText = 'Submitting...';
 
             const formData = new FormData(document.getElementById('activityForm'));
+            formData.set('completion_photo', await compressPhoto(document.getElementById('photoInput').files[0]));
             formData.append('signature', sigCanvas.toDataURL('image/png'));
             formData.append('latitude', loc.latitude);
             formData.append('longitude', loc.longitude);
 
-            fetch("{{ route('technician.activities.complete', $job->id) }}", {
-                    method: 'POST', body: formData, headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) { window.location.href = data.redirect; }
-                    else { showError(Object.values(data.errors).flat().join('<br>')); btn.disabled = false; btn.innerText = 'Complete Activity'; }
-                });
+            try {
+                const data = await postForm("{{ route('technician.activities.complete', $job->id) }}", formData);
+                window.location.href = data.redirect;
+            } catch (err) {
+                showError(err.message);
+                btn.disabled = false;
+                btn.innerText = 'Complete Activity';
+            }
         });
     </script>
     @endpush

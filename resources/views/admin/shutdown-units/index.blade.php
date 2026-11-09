@@ -27,32 +27,30 @@
         </div>
     </div>
 
-    <div class="card sd-card mb-3">
-        <div class="card-body py-2">
-            <form method="GET" action="{{ route('admin.shutdown-units.index') }}" class="d-flex gap-2">
-                <input type="text" name="search" class="form-control form-control-sm" style="max-width: 280px;"
-                    placeholder="Unit ID, unit no or project..." value="{{ request('search') }}">
-                <button class="btn btn-sm btn-primary">Search</button>
-                @if(request('search'))
-                    <a href="{{ route('admin.shutdown-units.index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
-                @endif
-            </form>
-        </div>
-    </div>
+    <form method="GET" action="{{ route('admin.shutdown-units.index') }}" id="filterForm"></form>
+    <x-active-filters :filters="[
+        'search' => 'Search',
+        'unit' => 'Unit ID',
+        'unit_no' => 'Unit No',
+        'project' => 'Project',
+        'route_id' => ['Route', $routeOptions],
+        'engineer_id' => ['Engineer', $engineerOptions],
+        'reason' => 'Reason',
+    ]" />
 
     <div class="card sd-card">
         <div class="table-responsive">
             <table class="sd-table">
                 <thead>
                     <tr>
-                        <th>Unit ID</th>
-                        <th>Unit No</th>
-                        <th>Project / Location</th>
-                        <th>Route</th>
-                        <th>Engineer</th>
+                        <th><x-th-filter label="Unit ID" name="unit" /></th>
+                        <th><x-th-filter label="Unit No" name="unit_no" /></th>
+                        <th><x-th-filter label="Project / Location" name="project" /></th>
+                        <th><x-th-filter label="Route" name="route_id" type="select" :options="$routeOptions" /></th>
+                        <th><x-th-filter label="Engineer" name="engineer_id" type="select" :options="$engineerOptions" /></th>
                         <th>Shutdown Since</th>
                         <th>Down For</th>
-                        <th>Reason</th>
+                        <th><x-th-filter label="Reason" name="reason" /></th>
                         <th>Reported In</th>
                         <th class="text-center">Action</th>
                     </tr>

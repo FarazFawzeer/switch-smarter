@@ -14,6 +14,17 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    /** What work a technician/supervisor does: PPM visits, breakdown & repair call-outs, or both. */
+    /** Team colour code (Rev 8): the bar shown before a person's name. */
+    public const ROLE_COLORS = [
+        'Manager'    => '#5B4BC4',
+        'Engineer'   => '#2E6BD8',
+        'Supervisor' => '#E8890C',
+        'Technician' => '#0E9F9A',
+    ];
+
+    public const WORK_CATEGORIES = ['both' => 'PPM + Breakdown', 'ppm' => 'PPM only', 'breakdown' => 'Breakdown & Repair'];
+
     protected $fillable = [
         'name',
         'employee_id',
@@ -38,6 +49,7 @@ class User extends Authenticatable
         'supervisor_id',
         'engineer_id',
         'shift_id',
+        'work_category',
     ];
 
     protected $hidden = [

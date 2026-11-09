@@ -64,7 +64,13 @@ class JobTrackingController extends Controller
             ->get()
             ->keyBy(fn($a) => $a->work_date->toDateString());
 
+        // approved leave in the range (Rev 8: shown as "On Leave", never counted as worked)
+        $leaves = \App\Models\LeaveRequest::where('technician_id', $technicianId)->where('status', 'approved')
+            ->whereDate('start_date', '<=', $rangeEnd)->whereDate('end_date', '>=', $rangeStart)
+            ->get(['start_date', 'end_date', 'leave_type']);
+
         $labels = [];
+        $leaveDays = [];
         $normalTime = [];
         $overTime = [];
         $hot = [];
@@ -79,6 +85,8 @@ class JobTrackingController extends Controller
             $worked = $record ? (float) ($record->total_hours ?? 0) : 0.0;
             $holiday = Holiday::reasonFor($cursor);
             $holidays[] = $holiday;
+            $leave = $leaves->first(fn ($l) => $cursor->between($l->start_date->copy()->startOfDay(), $l->end_date->copy()->endOfDay()));
+            $leaveDays[] = $leave ? 'On leave (' . $leave->leave_type . ')' : null;
 
             if ($worked > 0 && $holiday) {
                 // worked on a holiday → all of it is HOT
@@ -106,6 +114,8 @@ class JobTrackingController extends Controller
             'over_time'       => $overTime,
             'hot'             => $hot,
             'holidays'        => $holidays,
+            'leave'           => $leaveDays,
+            'leave_count'     => count(array_filter($leaveDays)),
         ];
     }
 
@@ -169,7 +179,7 @@ class JobTrackingController extends Controller
      */
     private function buildFilteredQuery(Request $request)
     {
-        $query = JobRecord::with(['technician:id,name,employee_id,shift_id', 'technician.shift', 'contract:id,project_name,location', 'unit:id,identification_no,unit_number', 'adjustments.adjustedBy:id,name'])
+        $query = JobRecord::with(['technician:id,name,employee_id,shift_id,supervisor_id', 'technician.shift', 'technician.supervisor:id,engineer_id', 'contract:id,project_name,location', 'unit:id,identification_no,unit_number', 'adjustments.adjustedBy:id,name'])
             ->whereNotNull('check_in_time');
 
         if ($request->filled('technician_id')) {
@@ -190,6 +200,19 @@ class JobTrackingController extends Controller
 
         if ($request->filled('to')) {
             $query->whereDate('check_in_time', '<=', $request->input('to'));
+        }
+
+        if ($request->filled('project')) {
+            $project = $request->input('project');
+            $query->whereHas('contract', fn($cq) => $cq->where(fn($w) => $w->where('project_name', 'like', "%{$project}%")->orWhere('location', 'like', "%{$project}%")));
+        }
+
+        if ($request->filled('unit')) {
+            $query->whereHas('unit', fn($uq) => $uq->where('identification_no', 'like', '%' . $request->input('unit') . '%'));
+        }
+
+        if ($request->filled('unit_no')) {
+            $query->whereHas('unit', fn($uq) => $uq->where('unit_number', 'like', '%' . $request->input('unit_no') . '%'));
         }
 
         if ($request->filled('search')) {

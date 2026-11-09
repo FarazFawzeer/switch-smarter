@@ -95,6 +95,16 @@
     <div class="form-text">Used to calculate overtime automatically based on check-out time.</div>
 </div>
 
+                <div class="col-md-6 mb-3" id="workCategoryField" style="display: none;">
+                    <label for="work_category" class="form-label">Work Category</label>
+                    <select id="work_category" name="work_category" class="form-select">
+                        @foreach (\App\Models\User::WORK_CATEGORIES as $wcValue => $wcLabel)
+                            <option value="{{ $wcValue }}" {{ $wcValue === 'both' ? 'selected' : '' }}>{{ $wcLabel }}</option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Breakdown &amp; Repair staff attend call-outs anywhere, so a route is optional for them and they are not offered for PPM scheduling.</div>
+                </div>
+
                     <div class="col-md-6 mb-3" id="supervisorField" style="display:none;">
                         <label for="supervisor_id" class="form-label">Reports to (Supervisor)</label>
                         <select id="supervisor_id" name="supervisor_id" class="form-select">
@@ -156,6 +166,9 @@
     engineerField.style.display = 'none';
     supervisorField.style.display = 'none';
     shiftField.style.display = 'none';
+
+    const workCategoryField = document.getElementById('workCategoryField');
+    workCategoryField.style.display = (this.value === 'Technician' || this.value === 'Supervisor') ? 'block' : 'none';
     document.getElementById('engineer_id').value = '';
     document.getElementById('supervisor_id').value = '';
 
@@ -176,7 +189,7 @@
         routesHelp.textContent = 'Select one or more routes this ' + this.value.toLowerCase() + ' covers.';
     } else if (this.value === 'Technician') {
         routesSection.style.display = 'block';
-        routesHelp.textContent = 'Select the single route this technician is assigned to.';
+        routesHelp.textContent = 'Select the single route this technician is assigned to (optional for the Breakdown & Repair team).';
         checkboxes.forEach(cb => { cb.type = 'radio'; });
     } else {
         routesSection.style.display = 'none';

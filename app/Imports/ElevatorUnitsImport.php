@@ -22,8 +22,7 @@ class ElevatorUnitsImport implements ToModel, WithHeadingRow, WithValidation
             'contract_id'       => $this->contractId,
             'identification_no' => $row['identification_no'] ?? null,
             'unit_number'       => isset($row['unit_number']) && trim((string) $row['unit_number']) !== '' ? trim((string) $row['unit_number']) : null,
-            'unit_type'         => in_array($row['unit_type'] ?? '', ['Elevator', 'Escalator', 'Dumbwaiter'])
-                                        ? $row['unit_type'] : 'Elevator',
+            'unit_type'         => ElevatorUnit::normalizeUnitType($row['unit_type'] ?? null) ?? 'Elevator',
             'elevator_type'     => $row['elevator_type'] ?? null,
             'speed'             => $row['speed'] ?? null,
             'capacity'          => $row['capacity'] ?? null,

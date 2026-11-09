@@ -9,6 +9,7 @@ use App\Models\ElevatorUnit;
 use App\Models\JobRecord;
 use App\Models\TechnicianAttendance;
 use App\Models\User;
+use App\Services\IdleTimeCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -35,7 +36,9 @@ class DashboardController extends Controller
         $units = fn () => ElevatorUnit::whereIn('contract_id', $contractIds);
 
         // ---------- KPI cards ----------
-        $projects = Contract::whereIn('id', $contractIds)->where('status', 'active');
+        // Only real projects: active AND holding at least one unit. Empty projects (left over from
+        // a deleted bulk upload) used to be counted, so "Total Projects" could exceed "Total Units".
+        $projects = Contract::whereIn('id', $contractIds)->where('status', 'active')->whereHas('elevatorUnits');
         $kpi = [
             'projects'          => (clone $projects)->count(),
             'projects_new'      => (clone $projects)->whereBetween('created_at', [$monthStart, $monthEnd])->count(),
@@ -75,7 +78,7 @@ class DashboardController extends Controller
         // ---------- Calendar: days with breakdowns ----------
         $calendar = $this->calendarWeeks($monthStart, $breakdownSummary['per_day']);
 
-        $live = $this->liveActivity($contractIds);
+        $live = $this->liveActivity($contractIds, $user);
 
         $greeting = match (true) {
             now()->hour < 12 => 'Good Morning',
@@ -95,7 +98,7 @@ class DashboardController extends Controller
     /** Live Maintenance Activity block (refreshed every minute by the page). */
     public function live()
     {
-        $live = $this->liveActivity($this->visibleContractIds(Auth::user()));
+        $live = $this->liveActivity($this->visibleContractIds(Auth::user()), Auth::user());
 
         return view('dashboard._live', compact('live'));
     }
@@ -205,9 +208,10 @@ class DashboardController extends Controller
 
     /**
      * Today's activity: active technicians (a job running now), idle/travelling technicians
-     * (checked in today but not on a job right now), counts by job type and the latest jobs.
+     * (worked today, between jobs now), technicians on leave, idle/travel time per technician
+     * (gaps between their jobs), counts by job type and the latest jobs.
      */
-    private function liveActivity(Collection $contractIds): array
+    private function liveActivity(Collection $contractIds, User $user): array
     {
         $today = now()->startOfDay();
 
@@ -219,22 +223,25 @@ class DashboardController extends Controller
             ->orderByDesc('check_in_time')
             ->get();
 
-        $running = $todayJobs->filter(fn ($j) => $j->status === 'in_progress' && ! $j->check_out_time);
-        $activeTechIds = $running->pluck('assigned_technician_id')->filter()->unique();
+        // Rev 8: per-technician idle / travel time = gaps BETWEEN jobs today; leave is never idle
+        $teamIds = IdleTimeCalculator::teamTechnicianIds($user);
+        $scopeIds = $teamIds === null ? null
+            : collect($teamIds)->merge($todayJobs->pluck('assigned_technician_id'))->filter()->unique()->values()->all();
+        $idleRows = IdleTimeCalculator::forDay(now(), $scopeIds);
 
-        $checkedInToday = TechnicianAttendance::whereDate('work_date', $today)
-            ->whereNotNull('check_in_time')
-            ->pluck('technician_id')
-            ->unique();
-
-        $idleTechIds = $checkedInToday->diff($activeTechIds);
+        $working = $idleRows->filter(fn ($r) => ! $r['on_leave'] && ($r['now']['type'] ?? null) === 'working');
+        $idleNow = $idleRows->filter(fn ($r) => ! $r['on_leave'] && ($r['now']['type'] ?? null) === 'idle');
+        $onLeave = $idleRows->where('on_leave', true);
 
         // counted once per main job (a team job started by 2 technicians = 1)
         $byType = $todayJobs->unique(fn ($j) => $j->parent_job_id ?? $j->id)->countBy('job_type');
 
         return [
-            'active'     => $activeTechIds->count(),
-            'idle'       => $idleTechIds->count(),
+            'active'     => $working->count(),
+            'idle'       => $idleNow->count(),
+            'on_leave'   => $onLeave->count(),
+            'idle_rows'  => $idleRows,
+            'idle_total' => $idleRows->where('on_leave', false)->sum('idle_min'),
             'by_type'    => [
                 'ppm'        => $byType['ppm'] ?? 0,
                 'breakdown'  => $byType['breakdown'] ?? 0,

@@ -15,7 +15,7 @@ class UserController extends Controller
     public function index()
     {
         $users = User::select('id', 'name', 'email', 'type', 'updated_at', 'image_path')
-            ->whereIn('type', ['Super Admin', 'Admin', 'Tour Assistant', 'Staff'])
+            ->whereIn('type', ['Super Admin', 'Admin', 'Storekeeper', 'Tour Assistant', 'Staff'])
             ->latest()
             ->paginate(10);
 
@@ -36,7 +36,7 @@ class UserController extends Controller
                 'required', 'string', 'min:8', 'confirmed',
                 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/',
             ],
-            'type'       => ['required', 'string', Rule::in(['Super Admin', 'Admin', 'Tour Assistant', 'Staff'])],
+            'type'       => ['required', 'string', Rule::in(['Super Admin', 'Admin', 'Storekeeper', 'Tour Assistant', 'Staff'])],
             'image_path' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ], [
             'name.regex'     => 'Name may only contain letters, spaces, hyphens, and periods.',

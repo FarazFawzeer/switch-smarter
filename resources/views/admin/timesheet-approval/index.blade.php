@@ -74,10 +74,22 @@
         </div>
     </div>
 
-    {{-- Selection + filter form --}}
-    <div class="card ap-card mb-3">
-        <div class="card-body">
-            <form method="GET" action="{{ route('admin.timesheet-approval.index') }}" id="selectionForm" class="row g-2 align-items-end">
+    {{-- Approval stage selection; the table filters (technician, month, status) live in the column headings --}}
+    @php
+        $technicianOptions = $technicians->mapWithKeys(fn($t) => [$t->id => $t->name . ($t->employee_id ? ' (' . $t->employee_id . ')' : '')])->all();
+        $monthOptions = ['current' => 'Current Month', 'previous' => 'Previous Month', 'both' => 'Both'];
+        $statusOptions = [
+            'pending' => 'Awaiting Supervisor',
+            'supervisor_approved' => 'Awaiting Engineer',
+            'engineer_approved' => 'Awaiting ' . $user->type,
+            'manager_approved' => 'Fully Approved',
+            'rejected' => 'Rejected',
+        ];
+        $showStageCard = $isAdminOverride || in_array($stage, ['engineer', 'supervisor']);
+    @endphp
+    <div class="card ap-card mb-3 {{ $showStageCard ? '' : 'd-none' }}">
+        <div class="card-body py-2">
+            <form method="GET" action="{{ route('admin.timesheet-approval.index') }}" id="filterForm" class="row g-2 align-items-end">
 
                 @if($isAdminOverride)
                     <div class="col-auto">
@@ -110,43 +122,36 @@
                     </div>
                 @endif
 
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Technician</label>
-                    <select name="technician_id" class="form-select form-select-sm filter-auto" style="width: 210px;"
-                        {{ $stage === 'engineer' && !$isAdminOverride && $technicians->isEmpty() ? 'disabled' : '' }}>
-                        <option value="">All Technicians</option>
-                        @foreach($technicians as $technician)
-                            <option value="{{ $technician->id }}" {{ request('technician_id') == $technician->id ? 'selected' : '' }}>
-                                {{ $technician->name }}{{ $technician->employee_id ? ' ('.$technician->employee_id.')' : '' }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                @if($isAdminOverride)
-                    <div class="col-auto">
-                        <label class="form-label small mb-1">Month</label>
-                        <select name="month_filter" class="form-select form-select-sm filter-auto" style="width: 150px;">
-                            <option value="current" {{ request('month_filter', 'current') == 'current' ? 'selected' : '' }}>Current Month</option>
-                            <option value="previous" {{ request('month_filter') == 'previous' ? 'selected' : '' }}>Previous Month</option>
-                            <option value="both" {{ request('month_filter') == 'both' ? 'selected' : '' }}>Both</option>
-                        </select>
-                    </div>
-                    <div class="col-auto">
-                        <label class="form-label small mb-1">Status</label>
-                        <select name="status_filter" class="form-select form-select-sm filter-auto" style="width: 180px;">
-                            <option value="">Stage default ({{ ucfirst($stage) }})</option>
-                            <option value="pending" {{ request('status_filter') == 'pending' ? 'selected' : '' }}>Awaiting Supervisor</option>
-                            <option value="supervisor_approved" {{ request('status_filter') == 'supervisor_approved' ? 'selected' : '' }}>Awaiting Engineer</option>
-                            <option value="engineer_approved" {{ request('status_filter') == 'engineer_approved' ? 'selected' : '' }}>Awaiting {{ $user->type }}</option>
-                            <option value="manager_approved" {{ request('status_filter') == 'manager_approved' ? 'selected' : '' }}>Fully Approved</option>
-                            <option value="rejected" {{ request('status_filter') == 'rejected' ? 'selected' : '' }}>Rejected</option>
-                        </select>
-                    </div>
-                @endif
+                @if(request('sort'))<input type="hidden" name="sort" value="{{ request('sort') }}">@endif
             </form>
         </div>
     </div>
+
+    <x-active-filters :filters="[
+        'technician_id' => ['Technician', $technicianOptions],
+        'month_filter' => ['Month', $monthOptions],
+        'status_filter' => ['Status', $statusOptions],
+    ]" :keep="['view_as', 'supervisor_id']" />
+
+    {{-- Rev 8: approved leave in this period — these days have no timesheet and are not counted as worked --}}
+    @php
+        $leaveRows = \App\Models\LeaveRequest::with('technician:id,name')
+            ->whereIn('technician_id', request('technician_id') ? [request('technician_id')] : $technicians->pluck('id'))
+            ->where('status', 'approved')
+            ->whereDate('end_date', '>=', now()->subMonthNoOverflow()->startOfMonth())
+            ->whereDate('start_date', '<=', now()->endOfMonth())
+            ->orderBy('start_date')->get();
+    @endphp
+    @if ($leaveRows->isNotEmpty())
+        <div class="alert d-flex flex-wrap align-items-center gap-2 mb-3" style="background: rgba(122,111,208,0.08); border: 1px solid rgba(122,111,208,0.25); border-radius: 10px;">
+            <strong style="color:#7A6FD0;">On leave (not counted as worked):</strong>
+            @foreach ($leaveRows as $lv)
+                <span class="badge" style="background: rgba(122,111,208,0.14); color:#5b51b0; font-weight:600;">
+                    {{ optional($lv->technician)->name }} · {{ $lv->start_date->format('d M') }}{{ $lv->days > 1 ? ' – ' . $lv->end_date->format('d M') : '' }} ({{ $lv->leave_type }})
+                </span>
+            @endforeach
+        </div>
+    @endif
 
     {{-- Timesheet table --}}
     <div class="card ap-card">
@@ -174,14 +179,26 @@
                             <input type="checkbox" class="form-check-input" id="selectAll" title="Select all days you can approve">
                         </th>
                         <th>No</th>
-                        <th>Employee</th>
+                        <th><x-th-filter label="Employee" name="technician_id" type="select" :options="$technicianOptions" /></th>
                         <th>Shift</th>
-                        <th>Date</th>
+                        <th>
+                            @if($isAdminOverride)
+                                <x-th-filter label="Date" name="month_filter" type="select" :options="$monthOptions" />
+                            @else
+                                Date
+                            @endif
+                        </th>
                         <th>Check-in</th>
                         <th>Check-out</th>
                         <th>Hours</th>
                         <th>OT / HOT</th>
-                        <th>Status</th>
+                        <th>
+                            @if($isAdminOverride)
+                                <x-th-filter label="Status" name="status_filter" type="select" :options="$statusOptions" />
+                            @else
+                                Status
+                            @endif
+                        </th>
                         <th class="text-center">Action</th>
                     </tr>
                 </thead>
@@ -353,7 +370,7 @@
     <script>
         document.querySelectorAll('.filter-auto').forEach(select => {
             select.addEventListener('change', function() {
-                document.getElementById('selectionForm').submit();
+                document.getElementById('filterForm').submit();
             });
         });
 

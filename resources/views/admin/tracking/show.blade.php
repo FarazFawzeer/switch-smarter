@@ -33,7 +33,7 @@
                     <div class="d-flex gap-2">
                         <span class="jt-type-pill" style="background:{{ $workTypeColor }};">{{ $workTypeLabelMap[$job->job_type] ?? ucfirst($job->job_type) }}</span>
                         <span class="badge" style="background:{{ $job->status === 'completed' ? '#2E9E5B' : '#17A2B8' }}; color:#fff;">
-                            {{ ucfirst(str_replace('_',' ', $job->status)) }}
+                            {{ $job->status === 'on_hold' ? 'Work Saved' : ucfirst(str_replace('_',' ', $job->status)) }}
                         </span>
                     </div>
                 </div>

@@ -5,6 +5,7 @@
 
     @php
         $tabs = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled', 'all' => 'All'];
+        $leaveTypeOptions = array_combine(\App\Models\LeaveRequest::TYPES, \App\Models\LeaveRequest::TYPES);
         $statusStyle = ['pending' => '#F0A202', 'approved' => '#2E9E5B', 'rejected' => '#D64545', 'cancelled' => '#8792a2'];
     @endphp
 
@@ -18,7 +19,7 @@
 
     <div class="d-flex flex-wrap gap-2 mb-3">
         @foreach ($tabs as $value => $label)
-            <a href="{{ route('admin.leave-requests.index', ['status' => $value]) }}"
+            <a href="{{ request()->fullUrlWithQuery(['status' => $value, 'page' => null]) }}"
                 class="btn btn-sm {{ $status === $value ? 'btn-primary' : 'btn-outline-secondary' }}">
                 {{ $label }}
                 @if ($value === 'pending' && $pendingCount > 0)
@@ -32,15 +33,26 @@
         <div class="alert alert-light border small">You can see your team's leave requests. Approval is done by each technician's supervisor.</div>
     @endunless
 
+    <form method="GET" action="{{ route('admin.leave-requests.index') }}" id="filterForm">
+        <input type="hidden" name="status" value="{{ $status }}">
+    </form>
+    <x-active-filters :filters="[
+        'technician' => 'Technician',
+        'supervisor' => 'Supervisor',
+        'leave_type' => ['Leave Type', $leaveTypeOptions],
+        'from' => 'From',
+        'to' => 'To',
+    ]" :keep="['status']" />
+
     <div class="card lr-card">
         <div class="table-responsive">
             <table class="lr-table">
                 <thead>
                     <tr>
-                        <th>Technician</th>
-                        <th>Supervisor</th>
-                        <th>Leave Type</th>
-                        <th>Dates</th>
+                        <th><x-th-filter label="Technician" name="technician" /></th>
+                        <th><x-th-filter label="Supervisor" name="supervisor" /></th>
+                        <th><x-th-filter label="Leave Type" name="leave_type" type="select" :options="$leaveTypeOptions" /></th>
+                        <th><x-th-filter label="Dates" type="daterange" from="from" to="to" /></th>
                         <th>Days</th>
                         <th>Reason</th>
                         <th>Requested</th>

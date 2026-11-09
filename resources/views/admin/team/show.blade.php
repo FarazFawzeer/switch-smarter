@@ -63,7 +63,7 @@
                     <img src="{{ user_avatar($team->image_path) }}"
                         alt="{{ $team->name }}" class="rounded-circle mb-3"
                         style="width: 96px; height: 96px; object-fit: cover;">
-                    <h5 class="mb-1">{{ $team->name }}</h5>
+                    <h5 class="mb-1 d-flex align-items-center justify-content-center"><x-role-bar :type="$team->type" height="20" />{{ $team->name }}</h5>
                     <span class="tm-role-pill mb-3" style="background: {{ $roleColor }};">{{ $team->type }}</span>
 
                     <div class="text-start mt-3">
@@ -101,7 +101,7 @@
                                 class="avatar-sm rounded-circle">
                             <div>
                                 <a href="{{ route('admin.team.show', $team->engineer->id) }}"
-                                    class="fw-semibold text-dark d-block">{{ $team->engineer->name }}</a>
+                                    class="fw-semibold text-dark role-name d-flex"><x-role-bar type="Engineer" />{{ $team->engineer->name }}</a>
                                 <span class="small text-muted">Engineer</span>
                             </div>
                         </div>
@@ -111,7 +111,7 @@
                                 class="avatar-sm rounded-circle">
                             <div>
                                 <a href="{{ route('admin.team.show', $team->supervisor->id) }}"
-                                    class="fw-semibold text-dark d-block">{{ $team->supervisor->name }}</a>
+                                    class="fw-semibold text-dark role-name d-flex"><x-role-bar type="Supervisor" />{{ $team->supervisor->name }}</a>
                                 <span class="small text-muted">Supervisor</span>
                             </div>
                         </div>
@@ -164,7 +164,7 @@
                                         class="avatar-sm rounded-circle">
                                     <div>
                                         <a href="{{ route('admin.team.show', $supervisor->id) }}"
-                                            class="fw-semibold text-dark d-block">{{ $supervisor->name }}</a>
+                                            class="fw-semibold text-dark role-name d-flex"><x-role-bar type="Supervisor" />{{ $supervisor->name }}</a>
                                         <div class="small text-muted">
                                             {{ $supervisor->employee_id ?? '—' }}
                                             @foreach ($supervisor->routes as $route)
@@ -187,7 +187,7 @@
                                         class="avatar-sm rounded-circle">
                                     <div>
                                         <a href="{{ route('admin.team.show', $technician->id) }}"
-                                            class="fw-semibold text-dark d-block">{{ $technician->name }}</a>
+                                            class="fw-semibold text-dark role-name d-flex"><x-role-bar type="Technician" />{{ $technician->name }}</a>
                                         <div class="small text-muted">
                                             {{ $technician->employee_id ?? '—' }} · {{ $technician->email }}
                                             @if ($technician->routes->first())

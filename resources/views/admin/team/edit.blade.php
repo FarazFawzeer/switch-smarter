@@ -92,13 +92,23 @@
     <div class="form-text">Used to calculate overtime automatically based on check-out time.</div>
 </div>
 
+                <div class="col-md-6 mb-3" id="workCategoryField" style="display: {{ in_array($team->type, ['Technician','Supervisor']) ? 'block' : 'none' }};">
+                    <label for="work_category" class="form-label">Work Category</label>
+                    <select id="work_category" name="work_category" class="form-select">
+                        @foreach (\App\Models\User::WORK_CATEGORIES as $wcValue => $wcLabel)
+                            <option value="{{ $wcValue }}" {{ ($team->work_category ?? 'both') === $wcValue ? 'selected' : '' }}>{{ $wcLabel }}</option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Breakdown &amp; Repair staff attend call-outs anywhere, so a route is optional for them and they are not offered for PPM scheduling.</div>
+                </div>
+
                 {{-- Routes: checkboxes for Engineer/Supervisor, radio for Technician --}}
                 @php $teamRouteIds = $team->routes->pluck('id')->toArray(); @endphp
                 <div class="row" id="routesSection" style="display: {{ in_array($team->type, ['Engineer','Supervisor','Technician']) ? 'block' : 'none' }};">
                     <div class="col-12 mb-3">
                         <label class="form-label">Routes</label>
                         <div class="form-text mb-2" id="routesHelp">
-                            {{ $team->type === 'Technician' ? 'Select the single route this technician is assigned to.' : 'Select one or more routes this ' . strtolower($team->type) . ' covers.' }}
+                            {{ $team->type === 'Technician' ? 'Select the single route this technician is assigned to (optional for the Breakdown & Repair team).' : 'Select one or more routes this ' . strtolower($team->type) . ' covers.' }}
                         </div>
 
                         @if($routes->isNotEmpty())
@@ -148,6 +158,9 @@
     supervisorField.style.display = 'none';
     shiftField.style.display = 'none';
 
+    const workCategoryField = document.getElementById('workCategoryField');
+    workCategoryField.style.display = (this.value === 'Technician' || this.value === 'Supervisor') ? 'block' : 'none';
+
     if (this.value === 'Supervisor') {
         engineerField.style.display = 'block';
     } else if (this.value === 'Technician') {
@@ -161,7 +174,7 @@
         checkboxes.forEach(cb => cb.type = 'checkbox');
     } else if (this.value === 'Technician') {
         routesSection.style.display = 'block';
-        routesHelp.textContent = 'Select the single route this technician is assigned to.';
+        routesHelp.textContent = 'Select the single route this technician is assigned to (optional for the Breakdown & Repair team).';
         checkboxes.forEach(cb => cb.type = 'radio');
     } else {
         routesSection.style.display = 'none';

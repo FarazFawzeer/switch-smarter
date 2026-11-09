@@ -153,10 +153,7 @@ class JobRecord extends Model
 
         $otMinutes = 0;
         if ($shift) {
-            $shiftEnd = Carbon::parse($start->toDateString() . ' ' . $shift->end_time);
-            if ($shift->end_time < $shift->start_time) {
-                $shiftEnd->addDay();
-            }
+            $shiftEnd = $shift->endFor($start);
             if ($end->gt($shiftEnd)) {
                 $otMinutes = $shiftEnd->gt($start) ? $shiftEnd->diffInMinutes($end) : $totalMinutes;
             }

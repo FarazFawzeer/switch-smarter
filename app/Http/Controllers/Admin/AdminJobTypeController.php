@@ -35,7 +35,7 @@ class AdminJobTypeController extends Controller
             return redirect()->route('admin.job-types.show', $job->parent_job_id);
         }
 
-        $job->load(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit', 'technician:id,name,employee_id', 'assignedBy:id,name', 'reportedBy:id,name', 'helpers.technician:id,name,employee_id']);
+        $job->load(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit', 'technician:id,name,employee_id,supervisor_id', 'technician.supervisor:id,engineer_id', 'assignedBy:id,name', 'reportedBy:id,name', 'helpers.technician:id,name,employee_id']);
 
         // technicians who could still be added to the team
         $teamIds = $job->helpers->pluck('assigned_technician_id')->push($job->assigned_technician_id)->filter();
@@ -110,10 +110,14 @@ class AdminJobTypeController extends Controller
         $year = (int) $request->get('year', now()->year);
 
         $search = trim((string) $request->input('search', ''));
+        $jobNo = trim((string) $request->input('job_no', ''));
+        $project = trim((string) $request->input('project', ''));
+        $unit = trim((string) $request->input('unit', ''));
 
-        // A search (job number, unit, project) looks across ALL months — a job number typed
-        // in from an older report must still be found, not only the selected month's jobs.
-        $searchAllMonths = $search !== '';
+        // A text search (job number, unit, project) or a date range looks across ALL months —
+        // a job number typed in from an older report must still be found.
+        $searchAllMonths = $search !== '' || $jobNo !== '' || $project !== '' || $unit !== ''
+            || $request->filled('date_from') || $request->filled('date_to');
 
         // Main jobs only: when 2+ technicians attend the same job, the extra technicians'
         // rows are linked helpers — listed under the job, but never counted twice.
@@ -123,7 +127,7 @@ class AdminJobTypeController extends Controller
             ->when(! $searchAllMonths, fn ($q) => $q->whereYear('scheduled_date', $year)->whereMonth('scheduled_date', $month))
             ->with([
                 'contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name',
-                'unit:id,identification_no,unit_number,operational_status', 'technician:id,name,employee_id',
+                'unit:id,identification_no,unit_number,operational_status', 'technician:id,name,employee_id,supervisor_id', 'technician.supervisor:id,engineer_id',
                 'helpers:id,parent_job_id,assigned_technician_id,status,breakdown_cause', 'helpers.technician:id,name',
             ]);
 
@@ -132,7 +136,36 @@ class AdminJobTypeController extends Controller
         }
 
         if ($request->filled('technician_id')) {
-            $query->where('assigned_technician_id', $request->input('technician_id'));
+            // the lead technician OR any technician who joined the job
+            $technicianId = (int) $request->input('technician_id');
+            $query->where(fn ($q) => $q->where('assigned_technician_id', $technicianId)
+                ->orWhereHas('helpers', fn ($h) => $h->where('assigned_technician_id', $technicianId)));
+        }
+
+        // ---- column filters ----
+        if ($jobNo !== '') {
+            $query->where(fn ($q) => $q->where('job_code', 'like', "%{$jobNo}%")->orWhere('repair_job_no', 'like', "%{$jobNo}%"));
+        }
+        if ($project !== '') {
+            $query->whereHas('contract', fn ($c) => $c->where(fn ($w) => $w->where('project_name', 'like', "%{$project}%")->orWhere('location', 'like', "%{$project}%")));
+        }
+        if ($unit !== '') {
+            $query->whereHas('unit', fn ($u) => $u->where(fn ($w) => $w->where('identification_no', 'like', "%{$unit}%")->orWhere('unit_number', 'like', "%{$unit}%")));
+        }
+        if ($request->filled('cause')) {
+            $cause = $request->input('cause');
+            $query->where(fn ($q) => $q->where('breakdown_cause', $cause)
+                ->orWhere(fn ($n) => $n->whereNull('breakdown_cause')->whereHas('helpers', fn ($h) => $h->where('breakdown_cause', $cause))));
+        }
+        if ($request->filled('date_from')) {
+            $query->whereDate('scheduled_date', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('scheduled_date', '<=', $request->input('date_to'));
+        }
+        if ($request->filled('details')) {
+            $details = $request->input('details');
+            $query->where(fn ($q) => $q->where('description', 'like', "%{$details}%")->orWhere('work_notes', 'like', "%{$details}%")->orWhere('scope_of_work', 'like', "%{$details}%"));
         }
 
         if ($request->filled('route_id')) {
@@ -173,7 +206,8 @@ class AdminJobTypeController extends Controller
             }
         }
 
-        $jobs = $query->orderByDesc('scheduled_date')->paginate(30)->withQueryString();
+        $dir = $request->get('dir') === 'asc' ? 'asc' : 'desc';
+        $jobs = $query->orderBy('scheduled_date', $request->get('sort') === 'date' ? $dir : 'desc')->orderByDesc('id')->paginate(30)->withQueryString();
 
         $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
         $technicians = User::where('type', 'Technician')->select('id', 'name', 'employee_id')->get();
@@ -222,9 +256,14 @@ class AdminJobTypeController extends Controller
      */
     public function techniciansForContract(\App\Models\Contract $contract)
     {
-        $technicians = $contract->route
-            ? $contract->route->technicians()->map(fn($t) => ['id' => $t->id, 'name' => $t->name])
-            : collect();
+        // the route's own technicians, plus the Breakdown & Repair team (they cover every route)
+        $routeTechnicians = $contract->route ? $contract->route->technicians() : collect();
+        $breakdownTeam = User::where('type', 'Technician')->where('work_category', 'breakdown')
+            ->whereNotIn('id', $routeTechnicians->pluck('id'))->orderBy('name')->get(['id', 'name']);
+
+        $technicians = $routeTechnicians->map(fn($t) => ['id' => $t->id, 'name' => $t->name])
+            ->concat($breakdownTeam->map(fn($t) => ['id' => $t->id, 'name' => $t->name . ' (Breakdown team)']))
+            ->values();
 
         return response()->json(['technicians' => $technicians]);
     }

@@ -1,4 +1,5 @@
 <meta charset="utf-8" />
+@include('layouts.partials.theme-boot')
 <title>{{ $subtitle }} - Switch Smarter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Switch Smarter: Elevator maintenance management system for scheduling, tracking, and managing PPM, repair, and breakdown work across your maintenance contracts." />

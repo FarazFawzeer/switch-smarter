@@ -29,6 +29,23 @@ class LeaveRequestController extends Controller
             $query->where('status', $status);
         }
 
+        if ($request->filled('technician')) {
+            $name = $request->input('technician');
+            $query->whereHas('technician', fn ($t) => $t->where(fn ($w) => $w->where('name', 'like', "%{$name}%")->orWhere('employee_id', 'like', "%{$name}%")));
+        }
+        if ($request->filled('supervisor')) {
+            $query->whereHas('technician.supervisor', fn ($t) => $t->where('name', 'like', '%' . $request->input('supervisor') . '%'));
+        }
+        if ($request->filled('leave_type')) {
+            $query->where('leave_type', $request->input('leave_type'));
+        }
+        if ($request->filled('from')) {
+            $query->whereDate('end_date', '>=', $request->input('from'));
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('start_date', '<=', $request->input('to'));
+        }
+
         $requests = $query->orderBy('start_date')->paginate(20)->withQueryString();
 
         $pendingCount = LeaveRequest::whereIn('technician_id', $this->visibleTechnicianIds($user))

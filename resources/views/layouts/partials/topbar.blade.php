@@ -4,7 +4,13 @@
     $topLeave = \App\Models\LeaveRequest::where('status', 'pending')->count();
     $topOpenBreakdowns = \App\Models\JobRecord::whereNull('parent_job_id')->where('job_type', 'breakdown')
         ->whereIn('status', ['pending', 'in_progress', 'on_hold'])->count();
-    $topAlerts = $topShutdown + $topLeave;
+    // Stores (Rev 8)
+    $topType = $topUser?->type;
+    $topStoreOnly = $topType === 'Storekeeper';
+    $topMrPending = in_array($topType, \App\Models\MaterialRequest::APPROVER_ROLES, true) ? \App\Models\MaterialRequest::where('status', 'pending')->count() : 0;
+    $topMrToIssue = in_array($topType, \App\Models\MaterialRequest::ISSUER_ROLES, true) ? \App\Models\MaterialRequest::where('status', 'approved')->count() : 0;
+    $topLowStock = in_array($topType, ['Storekeeper', 'Super Admin', 'Admin'], true) ? \App\Models\InventoryItem::lowStock()->count() : 0;
+    $topAlerts = ($topStoreOnly ? 0 : $topShutdown + $topLeave) + $topMrPending + $topMrToIssue + $topLowStock;
     $topAvatar = user_avatar($topUser?->image_path);
 @endphp
 
@@ -18,7 +24,7 @@
                     </button>
                 </div>
 
-                <form class="ss-search d-none d-md-flex" method="GET" action="{{ route('admin.contracts.index') }}" role="search">
+                <form class="ss-search d-none {{ $topStoreOnly ? '' : 'd-md-flex' }}" method="GET" action="{{ route('admin.contracts.index') }}" role="search">
                     <x-ui-icon name="search" size="18" />
                     <input type="search" name="search" placeholder="Search units, projects, job no…" autocomplete="off"
                         value="{{ request()->routeIs('admin.contracts.*') ? request('search') : '' }}">
@@ -44,6 +50,25 @@
                     </button>
                     <div class="dropdown-menu dropdown-menu-end ss-notify">
                         <div class="ss-notify-head">Notifications</div>
+                        @if ($topMrPending > 0)
+                            <a class="ss-notify-item" href="{{ route('admin.stores.requests.index', ['status' => 'pending']) }}">
+                                <span class="ss-notify-icon" style="--c:#2E6BD8;"><x-ui-icon name="file-text" size="16" /></span>
+                                <span><strong>{{ $topMrPending }}</strong> material request{{ $topMrPending === 1 ? '' : 's' }} to approve</span>
+                            </a>
+                        @endif
+                        @if ($topMrToIssue > 0)
+                            <a class="ss-notify-item" href="{{ route('admin.stores.requests.index', ['status' => 'approved']) }}">
+                                <span class="ss-notify-icon" style="--c:#7A6FD0;"><x-ui-icon name="package" size="16" /></span>
+                                <span><strong>{{ $topMrToIssue }}</strong> approved request{{ $topMrToIssue === 1 ? '' : 's' }} to issue</span>
+                            </a>
+                        @endif
+                        @if ($topLowStock > 0)
+                            <a class="ss-notify-item" href="{{ route('admin.stores.inventory.index', ['stock' => 'low']) }}">
+                                <span class="ss-notify-icon" style="--c:#E08A00;"><x-ui-icon name="alert" size="16" /></span>
+                                <span><strong>{{ $topLowStock }}</strong> item{{ $topLowStock === 1 ? '' : 's' }} at low stock</span>
+                            </a>
+                        @endif
+                        @unless ($topStoreOnly)
                         <a class="ss-notify-item" href="{{ route('admin.shutdown-units.index') }}">
                             <span class="ss-notify-icon" style="--c:#D64545;"><x-ui-icon name="power" size="16" /></span>
                             <span><strong>{{ $topShutdown }}</strong> elevator{{ $topShutdown === 1 ? '' : 's' }} shut down</span>
@@ -56,6 +81,7 @@
                             <span class="ss-notify-icon" style="--c:#E08A00;"><x-ui-icon name="calendar" size="16" /></span>
                             <span><strong>{{ $topLeave }}</strong> leave request{{ $topLeave === 1 ? '' : 's' }} awaiting approval</span>
                         </a>
+                        @endunless
                     </div>
                 </div>
 

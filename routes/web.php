@@ -108,6 +108,29 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'not.technician', 'n
 
     // Manual Timesheet Adjustment (engineers for their team; admins for all)
     Route::post('tracking/{job}/adjust', [TimesheetAdjustmentController::class, 'store'])->name('tracking.adjust');
+    // Stores: inventory + Material Requests (MRN) — Rev 8
+    Route::prefix('stores')->name('stores.')->group(function () {
+        Route::get('inventory/search', [\App\Http\Controllers\Admin\InventoryController::class, 'search'])->name('inventory.search');
+        Route::get('analytics', [\App\Http\Controllers\Admin\InventoryController::class, 'analytics'])->name('analytics');
+        Route::post('inventory/{item}/receive', [\App\Http\Controllers\Admin\InventoryController::class, 'receive'])->name('inventory.receive');
+        Route::post('inventory/{item}/adjust', [\App\Http\Controllers\Admin\InventoryController::class, 'adjust'])->name('inventory.adjust');
+        Route::resource('inventory', \App\Http\Controllers\Admin\InventoryController::class)->parameters(['inventory' => 'item']);
+
+        Route::get('requests', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'index'])->name('requests.index');
+        Route::get('requests/create', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'create'])->name('requests.create');
+        Route::post('requests', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'store'])->name('requests.store');
+        Route::get('requests/units/{contract}', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'units'])->name('requests.units');
+        Route::get('requests/{mr}', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'show'])->name('requests.show');
+        Route::post('requests/{mr}/approve', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'approve'])->name('requests.approve');
+        Route::post('requests/{mr}/reject', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'reject'])->name('requests.reject');
+        Route::post('requests/{mr}/issue', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'issue'])->name('requests.issue');
+        Route::post('requests/{mr}/cancel', [\App\Http\Controllers\Admin\MaterialRequestController::class, 'cancel'])->name('requests.cancel');
+    });
+
+    // Idle / travel time between jobs (Rev 8)
+    Route::get('idle-time', [\App\Http\Controllers\Admin\IdleTimeController::class, 'index'])->name('idle-time.index');
+    // Office "Mark as Completed" (engineer / supervisor of the technician, or an admin)
+    Route::post('jobs/{job}/mark-completed', [\App\Http\Controllers\Admin\JobCompletionController::class, 'store'])->name('jobs.mark-completed');
 
     // Elevators currently shut down (priority list)
     Route::get('shutdown-units', [ShutdownUnitController::class, 'index'])->name('shutdown-units.index');

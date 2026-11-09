@@ -97,7 +97,10 @@ class TimesheetAdjustmentController extends Controller
             return response()->json(['success' => false, 'message' => 'Nothing changed.'], 422);
         }
 
-        DB::transaction(function () use ($job, $oldIn, $oldOut, $newIn, $newOut, $request) {
+        // Rev 8: entering an end time on a started / saved job completes it
+        $completes = $newOut && in_array($job->status, JobCompletionController::OPEN_STATUSES, true);
+
+        DB::transaction(function () use ($job, $oldIn, $oldOut, $newIn, $newOut, $request, $completes) {
             TimesheetAdjustment::create([
                 'job_record_id' => $job->id,
                 'old_check_in'  => $oldIn,
@@ -112,7 +115,12 @@ class TimesheetAdjustmentController extends Controller
                 'check_in_time'     => $newIn,
                 'check_out_time'    => $newOut,
                 'times_adjusted_at' => now(),
-            ]);
+            ] + ($completes ? ['status' => 'completed', 'completed_at' => $newOut] : []));
+
+            if ($completes && $job->unit && $job->unit_status_after && ! $job->parent_job_id
+                && in_array($job->job_type, ['breakdown', 'repair'], true)) {
+                $job->unit->applyClosureStatus($job->unit_status_after, $job->shutdown_reason, $job);
+            }
 
             // the job may have moved to another day — recalculate both days
             foreach (collect([$oldIn, $newIn])->map->toDateString()->unique() as $date) {
@@ -122,7 +130,8 @@ class TimesheetAdjustmentController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Timesheet corrected: ' . $newIn->format('d M, h:i A') . ' → ' . ($newOut?->format('h:i A') ?? 'no check-out') . '. Hours recalculated.',
+            'message' => 'Timesheet corrected: ' . $newIn->format('d M, h:i A') . ' → ' . ($newOut?->format('h:i A') ?? 'no check-out') . '. Hours recalculated.'
+                . ($completes ? ' The job is now Completed.' : ''),
         ]);
     }
 }

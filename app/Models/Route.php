@@ -25,6 +25,14 @@ class Route extends Model
         return $this->users()->where('type', 'Technician')->get();
     }
 
+    /** Route technicians who do PPM visits (the Breakdown & Repair team is not scheduled for PPM). */
+    public function ppmTechnicians()
+    {
+        return $this->users()->where('type', 'Technician')
+            ->where(fn ($q) => $q->whereNull('work_category')->orWhere('work_category', '!=', 'breakdown'))
+            ->get();
+    }
+
     public function technician(): ?User
     {
         return $this->users()->where('type', 'Technician')->first();

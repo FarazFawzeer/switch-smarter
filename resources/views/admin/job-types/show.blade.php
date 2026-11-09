@@ -52,7 +52,7 @@
             'completed' => ['Completed', '#2E9E5B'],
             'in_progress' => ['In Progress', '#17A2B8'],
             'pending' => ['Pending', '#F0A202'],
-            'on_hold' => ['On Hold', '#8792a2'],
+            'on_hold' => ['Work Saved', '#7A6FD0'],
         ];
         $isOverdue = in_array($job->status, ['pending', 'overdue']) && $job->scheduled_date->isPast();
         [$statusLabel, $statusColor] = $isOverdue
@@ -110,7 +110,7 @@
                     {{-- Team: every technician on this job, each with their own times (own timesheet) --}}
                     @php
                         $teamRows = collect([$job])->concat($job->helpers);
-                        $teamStatus = ['completed' => ['Completed', '#2E9E5B'], 'in_progress' => ['In Progress', '#17A2B8'], 'on_hold' => ['On Hold', '#8792a2'], 'pending' => ['Not Started', '#F0A202']];
+                        $teamStatus = ['completed' => ['Completed', '#2E9E5B'], 'in_progress' => ['In Progress', '#17A2B8'], 'on_hold' => ['Work Saved', '#7A6FD0'], 'pending' => ['Not Started', '#F0A202']];
                     @endphp
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <p class="jt-field-label mb-0">
@@ -318,11 +318,13 @@
                 </div>
             @endif
 
+            <x-mark-complete-btn :job="$job" :small="false" class="w-100 mb-2" />
             <a href="{{ route($backRoute) }}" class="btn btn-secondary w-100">
                 <iconify-icon icon="solar:arrow-left-outline"></iconify-icon> Back to {{ $label }} List
             </a>
         </div>
     </div>
+    @include('admin.partials.timesheet-adjust-script')
     <script>
         document.getElementById('addTechnicianBtn')?.addEventListener('click', function() {
             const technicianId = document.getElementById('addTechnicianSelect').value;

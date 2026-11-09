@@ -284,6 +284,35 @@ html[data-bs-theme="dark"] .ss-topbar #light-dark-mode .dark-mode { display: blo
 .ss-user-meta strong { color: var(--ss-text); font-size: 13.5px; }
 .ss-user-meta span { color: var(--ss-muted); font-size: 11.5px; }
 
+/* ---------- Column-heading filters (<x-th-filter>) ---------- */
+.thf { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.thf-label { color: inherit; text-decoration: none; font-weight: 600; }
+a.thf-label:hover { color: var(--ss-primary); }
+.thf-label.is-sorted { color: var(--ss-primary); }
+.thf-sort { font-size: 11px; opacity: .45; margin-left: 1px; }
+.thf-label.is-sorted .thf-sort { opacity: 1; }
+.thf-btn {
+    width: 24px; height: 24px; border-radius: 6px; border: 1px solid transparent; background: transparent;
+    color: var(--ss-muted); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+}
+.thf-btn:hover { background: var(--ss-surface-3); color: var(--ss-text); }
+.thf-btn.is-active { background: color-mix(in srgb, var(--ss-primary) 14%, transparent); color: var(--ss-primary); border-color: color-mix(in srgb, var(--ss-primary) 30%, transparent); }
+.thf-menu { min-width: 230px; padding: 12px; border-radius: 12px; border: 1px solid var(--ss-border); box-shadow: var(--ss-shadow-lg); background: var(--ss-surface); z-index: 1060; }
+.thf-title { font-size: 11.5px; font-weight: 700; color: var(--ss-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+.thf-sub { font-size: 11px; color: var(--ss-muted); margin-bottom: 2px; }
+.thf-menu .form-control, .thf-menu .form-select { background-color: var(--ss-surface-2); border-color: var(--ss-border); color: var(--ss-text); }
+.thf-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.thf-actions button { flex: 1; height: 30px; border-radius: 8px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--ss-border); background: var(--ss-surface); color: var(--ss-text-2); }
+.thf-actions .thf-apply { background: var(--ss-primary); border-color: var(--ss-primary); color: #fff; }
+
+/* active filter chips above a table */
+.af-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 12.5px; }
+.af-title { color: var(--ss-muted); display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.af-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 10px; border-radius: 20px; text-decoration: none;
+    background: color-mix(in srgb, var(--ss-primary) 10%, var(--ss-surface)); color: var(--ss-text-2); border: 1px solid color-mix(in srgb, var(--ss-primary) 22%, var(--ss-border)); }
+.af-chip:hover { border-color: var(--ss-red); color: var(--ss-red); }
+.af-clear { color: var(--ss-red); font-weight: 600; text-decoration: none; margin-left: 2px; }
+
 /* ---------- Technician app: no sidebar, phone-first ---------- */
 .technician-app .page-content { margin-left: 0 !important; padding: 16px 14px 90px !important; max-width: 720px; margin-right: auto !important; margin-left: auto !important; }
 .technician-app .app-topbar { padding-left: 0 !important; }
@@ -344,3 +373,34 @@ html[data-bs-theme="dark"] .dropdown-menu { background: var(--ss-surface); borde
 
 html[data-bs-theme="dark"] .swal2-popup { background: var(--ss-surface) !important; color: var(--ss-text) !important; }
 html[data-bs-theme="dark"] .swal2-title, html[data-bs-theme="dark"] .swal2-html-container { color: var(--ss-text) !important; }
+
+/* ---------- Schedule warnings (holiday / technician on leave) ---------- */
+.visit-warn { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 11px; font-weight: 600; color: #B57900; background: rgba(240, 162, 2, 0.13); border-radius: 6px; padding: 1px 7px; }
+.sc-cal-pill.has-warn { outline: 1.5px dashed #E08A00; outline-offset: -1px; }
+.sc-warn-dot { display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border-radius: 50%; background: #E08A00; color: #fff; font-size: 9px; font-weight: 800; margin-right: 3px; vertical-align: 1px; }
+
+/* ---------- Team colour code (Rev 8): bar before a person's name ---------- */
+.role-bar { display: inline-block; width: 4px; min-width: 4px; border-radius: 3px; background: var(--role); vertical-align: middle; margin-right: 8px; flex-shrink: 0; }
+.role-name { display: inline-flex; align-items: center; min-width: 0; }
+
+/* ---------- Sidebar structure (sections + groups) ---------- */
+.ss-sidebar .navbar-nav { gap: 2px; }
+.ss-sidebar .navbar-nav .ss-menu-title {
+    padding: 18px 14px 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ss-side-muted); opacity: .75; pointer-events: none;
+}
+/* the parent of the open page: quietly highlighted; the solid green stays on single pages */
+.ss-sidebar .navbar-nav .nav-item .nav-link.menu-arrow.active {
+    background: rgba(255, 255, 255, 0.07); box-shadow: none; color: #FFFFFF;
+}
+.ss-sidebar .navbar-nav .nav-item .nav-link.menu-arrow.active .nav-icon { color: #4FD1A5; }
+.ss-sidebar .navbar-nav .nav-item .nav-link.menu-arrow .ss-nav-badge { margin-right: 18px; }
+/* sub menu: a thin guide line, label left, badge right */
+.ss-sidebar .navbar-nav .sub-navbar-nav { padding: 2px 0 6px 0; margin-left: 24px; border-left: 1px solid rgba(255, 255, 255, 0.08); padding-left: 12px; }
+.ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item .sub-nav-link { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item .sub-nav-link .badge { font-size: 10px; }
+.ss-sidebar .navbar-nav .sub-navbar-nav .sub-nav-item .sub-nav-link.active { background: rgba(79, 209, 165, 0.10); }
+
+/* collapsed (icon-only) sidebar: headings become a thin divider */
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav .ss-menu-title { font-size: 0; padding: 0; margin: 10px 14px; height: 1px; background: rgba(255, 255, 255, 0.10); opacity: 1; }
+html[data-sidebar-size="condensed"] .ss-sidebar .navbar-nav .sub-navbar-nav { margin-left: 0; border-left: 0; }

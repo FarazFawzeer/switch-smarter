@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ElevatorUnit;
+use App\Models\Route as RouteModel;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -38,9 +40,34 @@ class ShutdownUnitController extends Controller
             });
         }
 
+        if ($request->filled('unit')) {
+            $query->where('identification_no', 'like', '%' . $request->input('unit') . '%');
+        }
+        if ($request->filled('unit_no')) {
+            $query->where('unit_number', 'like', '%' . $request->input('unit_no') . '%');
+        }
+        if ($request->filled('project')) {
+            $project = $request->input('project');
+            $query->whereHas('contract', fn ($c) => $c->where(fn ($w) => $w->where('project_name', 'like', "%{$project}%")->orWhere('location', 'like', "%{$project}%")));
+        }
+        if ($request->filled('route_id')) {
+            $query->whereHas('contract', fn ($c) => $c->where('route_id', $request->input('route_id')));
+        }
+        if ($request->filled('engineer_id')) {
+            $query->whereHas('contract', fn ($c) => $c->where('assigned_engineer_id', $request->input('engineer_id')));
+        }
+        if ($request->filled('reason')) {
+            $query->whereHas('shutdownJob', fn ($j) => $j->where('breakdown_cause', 'like', '%' . $request->input('reason') . '%'));
+        }
+
         $units = $query->orderBy('shutdown_since')->get();
 
-        return view('admin.shutdown-units.index', compact('units'));
+        $routeOptions = RouteModel::whereIn('id', Contract::whereIn('id', $visibleContractIds)->whereNotNull('route_id')->pluck('route_id'))
+            ->orderBy('route_no')->pluck('route_no', 'id')->all();
+        $engineerOptions = User::whereIn('id', Contract::whereIn('id', $visibleContractIds)->whereNotNull('assigned_engineer_id')->pluck('assigned_engineer_id'))
+            ->orderBy('name')->pluck('name', 'id')->all();
+
+        return view('admin.shutdown-units.index', compact('units', 'routeOptions', 'engineerOptions'));
     }
 
     /** Office override: elevator is running again (e.g. fixed outside the app). */

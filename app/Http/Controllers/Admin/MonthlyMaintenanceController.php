@@ -21,7 +21,7 @@ class MonthlyMaintenanceController extends Controller
             ->whereNotNull('elevator_unit_id') // orphan visits (unit deleted) are not real PPMs
             ->whereYear('scheduled_date', $year)
             ->whereMonth('scheduled_date', $month)
-            ->with(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit:id,identification_no,unit_number', 'technician:id,name,employee_id']);
+            ->with(['contract:id,project_name,location,route_id,assigned_engineer_id', 'contract.route:id,route_no', 'contract.engineer:id,name', 'unit:id,identification_no,unit_number', 'technician:id,name,employee_id,supervisor_id', 'technician.supervisor:id,engineer_id']);
 
         if ($request->filled('engineer_id')) {
             $query->whereHas('contract', fn ($q) => $q->where('assigned_engineer_id', $request->input('engineer_id')));
@@ -41,6 +41,22 @@ class MonthlyMaintenanceController extends Controller
                 $q->whereHas('contract', fn ($cq) => $cq->where('project_name', 'like', "%{$search}%"))
                   ->orWhereHas('unit', fn ($uq) => $uq->where('identification_no', 'like', "%{$search}%"));
             });
+        }
+
+        // ---- column filters ----
+        if ($request->filled('project')) {
+            $project = $request->input('project');
+            $query->whereHas('contract', fn ($c) => $c->where(fn ($w) => $w->where('project_name', 'like', "%{$project}%")->orWhere('location', 'like', "%{$project}%")));
+        }
+        if ($request->filled('unit')) {
+            $unit = $request->input('unit');
+            $query->whereHas('unit', fn ($u) => $u->where(fn ($w) => $w->where('identification_no', 'like', "%{$unit}%")->orWhere('unit_number', 'like', "%{$unit}%")));
+        }
+        if ($request->filled('date_from')) {
+            $query->whereDate('scheduled_date', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('scheduled_date', '<=', $request->input('date_to'));
         }
 
         // Summary counts computed on the FULL filtered set (before status filter/pagination),
@@ -95,7 +111,13 @@ class MonthlyMaintenanceController extends Controller
             }
         }
 
-        $jobs = $query->orderBy('scheduled_date')->paginate(30)->withQueryString();
+        $dir = $request->get('dir') === 'desc' ? 'desc' : 'asc';
+        match ($request->get('sort')) {
+            'project' => $query->orderBy(\App\Models\Contract::select('project_name')->whereColumn('contracts.id', 'jobs_records.contract_id'), $dir),
+            'unit'    => $query->orderBy(\App\Models\ElevatorUnit::select('identification_no')->whereColumn('elevator_units.id', 'jobs_records.elevator_unit_id'), $dir),
+            default   => $query->orderBy('scheduled_date', $request->get('sort') === 'date' ? $dir : 'asc'),
+        };
+        $jobs = $query->orderBy('jobs_records.id')->paginate(30)->withQueryString();
 
         $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
         $technicians = User::where('type', 'Technician')->select('id', 'name', 'employee_id')->get();
@@ -104,9 +126,11 @@ class MonthlyMaintenanceController extends Controller
         $monthOptions = collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => Carbon::create()->month($m)->format('F')]);
         $yearOptions = range(now()->year - 2, now()->year + 2);
 
+        $visitWarnings = \App\Services\ScheduleWarnings::forJobs($jobs->getCollection());
+
         return view('admin.monthly-maintenance.index', compact(
             'jobs', 'summary', 'engineers', 'technicians', 'routes',
-            'month', 'year', 'monthOptions', 'yearOptions'
+            'month', 'year', 'monthOptions', 'yearOptions', 'visitWarnings'
         ));
     }
 }

@@ -27,6 +27,12 @@ class TeamController extends Controller
             'Technician' => User::where('type', 'Technician')->count(),
         ];
 
+        // Any column filter shows the Employee Master list (the organisation tree has no columns)
+        $filterKeys = ['search', 'type', 'employee_id', 'name', 'reports_to', 'route_id', 'work_category', 'unassigned'];
+        if (collect($filterKeys)->contains(fn ($k) => $request->filled($k))) {
+            $view = 'master';
+        }
+
         if ($view === 'master') {
             $query = User::whereIn('type', ['Manager', 'Engineer', 'Supervisor', 'Technician'])
                 ->with(['supervisor:id,name', 'engineer:id,name', 'routes', 'shift']);
@@ -39,44 +45,51 @@ class TeamController extends Controller
                         ->orWhere('employee_id', 'like', "%{$search}%");
                 });
             }
-
+            if ($request->filled('employee_id')) {
+                $query->where('employee_id', 'like', '%' . $request->input('employee_id') . '%');
+            }
+            if ($request->filled('name')) {
+                $name = $request->input('name');
+                $query->where(fn ($q) => $q->where('name', 'like', "%{$name}%")->orWhere('email', 'like', "%{$name}%"));
+            }
             if ($request->filled('type')) {
                 $query->where('type', $request->input('type'));
             }
-
-            $sortable = ['employee_id', 'name', 'type'];
-            $sort = $request->get('sort', 'employee_id');
-            $dir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
-            $query->orderBy(in_array($sort, $sortable) ? $sort : 'employee_id', $dir);
-
-            $team = $query->paginate(20)->withQueryString();
-
-            return view('admin.team.index', compact('team', 'view', 'roleCounts', 'sort', 'dir'));
-        }
-
-        $isFiltering = $request->filled('search') || $request->filled('type');
-
-        if ($isFiltering) {
-            $query = User::whereIn('type', ['Manager', 'Engineer', 'Supervisor', 'Technician'])
-                ->with(['supervisor:id,name', 'engineer:id,name', 'routes', 'shift']);
-
-            if ($request->filled('search')) {
-                $search = $request->input('search');
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('employee_id', 'like', "%{$search}%");
+            if ($request->filled('work_category')) {
+                $query->whereIn('type', ['Supervisor', 'Technician'])->where('work_category', $request->input('work_category'));
+            }
+            if ($request->filled('reports_to')) {
+                $boss = $request->input('reports_to');
+                $query->where(function ($q) use ($boss) {
+                    $q->whereHas('supervisor', fn ($s) => $s->where('name', 'like', "%{$boss}%"))
+                        ->orWhere(fn ($w) => $w->where('type', 'Supervisor')->whereHas('engineer', fn ($e) => $e->where('name', 'like', "%{$boss}%")));
                 });
             }
-
-            if ($request->filled('type')) {
-                $query->where('type', $request->input('type'));
+            if ($request->filled('route_id')) {
+                $query->whereHas('routes', fn ($r) => $r->where('routes.id', $request->input('route_id')));
+            }
+            if ($request->boolean('unassigned')) {
+                $query->where('type', 'Technician')->whereNull('supervisor_id');
             }
 
-            $team = $query->latest()->paginate(15)->withQueryString();
+            // Default order is the hierarchy: managers, engineers, supervisors, then technicians
+            $sortable = ['employee_id', 'name', 'type'];
+            $sort = in_array($request->get('sort'), $sortable, true) ? $request->get('sort') : 'type';
+            $dir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
+            if ($sort === 'type') {
+                $query->orderByRaw("FIELD(type, 'Manager', 'Engineer', 'Supervisor', 'Technician') {$dir}")->orderBy('name');
+            } else {
+                $query->orderBy($sort, $dir);
+            }
 
-            return view('admin.team.index', compact('team', 'view', 'roleCounts'))->with('isFiltering', true);
+            $team = $query->paginate(25)->withQueryString();
+            $routeOptions = RouteModel::orderBy('route_no')->pluck('route_no', 'id')->all();
+
+            return view('admin.team.index', compact('team', 'view', 'roleCounts', 'sort', 'dir', 'routeOptions'))
+                ->with('isFiltering', false);
         }
+
+        $isFiltering = false;
 
         $managers = User::where('type', 'Manager')->get();
 
@@ -154,6 +167,8 @@ class TeamController extends Controller
 
         // Shift only applies to Technicians — ignore it for other roles even if sent
         $data['shift_id'] = $request->input('type') === 'Technician' ? $request->input('shift_id') : null;
+        $data['work_category'] = in_array($request->input('type'), ['Technician', 'Supervisor'], true)
+            ? $request->input('work_category', 'both') : 'both';
 
         $data['password'] = Hash::make($request->password);
 
@@ -224,6 +239,8 @@ class TeamController extends Controller
 
         // Shift only applies to Technicians — clear it if the role was changed away from Technician
         $data['shift_id'] = $request->input('type') === 'Technician' ? $request->input('shift_id') : null;
+        $data['work_category'] = in_array($request->input('type'), ['Technician', 'Supervisor'], true)
+            ? $request->input('work_category', 'both') : 'both';
 
         if ($request->hasFile('image_path')) {
             if ($team->image_path) {
@@ -311,6 +328,7 @@ class TeamController extends Controller
                 'required_if:type,Technician',
                 Rule::exists('shifts', 'id'),
             ],
+            'work_category' => ['nullable', Rule::in(array_keys(User::WORK_CATEGORIES))],
             'image_path'    => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
             'routes'        => ['nullable', 'array'],

@@ -10,7 +10,7 @@
         $repairTrend = $pct($kpi['repairs_done'], $kpi['repairs_done_prev']);
 
         // ---- donut (pure SVG: circumference of r=15.9155 is 100) ----
-        $typeColors = ['#2E86DE', '#1ABC9C', '#9B59B6', '#F0A202', '#8792A2'];
+        $typeColors = ['#3B6FD8', '#139A7B', '#6B57D2', '#D9822B', '#8792A2'];
         $donutTotal = max(1, (int) $unitTypes->sum());
         $runningShare = 0; // the svg is rotated -90deg, so 0 starts at 12 o'clock
         $donutSegments = [];
@@ -22,7 +22,7 @@
 
         // ---- units by engineer ----
         $maxEngineer = max(1, (int) $unitsByEngineer->max('total'));
-        $engineerColors = ['#2E86DE', '#1ABC9C', '#F0730A', '#9B59B6', '#1E9E74', '#D64545'];
+        $engineerColors = ['#3B6FD8', '#139A7B', '#D9822B', '#6B57D2', '#1489A8', '#D9484A'];
 
         // ---- breakdown chart (pure HTML bars, stacked by cause) ----
         $causeColors = ['#7FA8E6', '#86D1B5', '#F3C77E', '#B9A3EE', '#EE9A9A', '#9CCFEA', '#CDBE95', '#EBA6CE', '#9CCB93', '#CF9BEB', '#B5BCC7', '#D5D9DF'];
@@ -146,6 +146,17 @@
         .db-live-table thead th:last-child { border-radius: 0 10px 10px 0; }
         .db-live-table tbody td { padding: 11px 10px; border-bottom: 1px solid var(--ss-border); vertical-align: middle; color: var(--ss-text-2); }
         .db-live-table tbody tr:last-child td { border-bottom: 0; }
+        /* Rev 8: finished jobs sit on a darker band so the running ones stand out */
+        .db-live-table tbody tr.db-row-done td { background: color-mix(in srgb, var(--ss-text) 9%, var(--ss-surface)); }
+        .db-live-table tbody tr.db-row-done td:first-child { border-radius: 10px 0 0 10px; }
+        .db-live-table tbody tr.db-row-done td:last-child { border-radius: 0 10px 10px 0; }
+        .db-live-table tbody tr.db-row-leave td { opacity: .75; }
+        .db-leave-note { font-size: 11px; font-weight: 700; color: #7A6FD0; background: rgba(122,111,208,0.14); border-radius: 6px; padding: 2px 7px; vertical-align: middle; margin-left: 4px; }
+        .db-st-leave { background: rgba(122,111,208,0.14); color: #7A6FD0; }
+        .db-idle-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin: 22px 0 10px; padding-top: 16px; border-top: 1px solid var(--ss-border); }
+        .db-idle-title { font-weight: 700; color: var(--ss-text); display: flex; align-items: center; gap: 6px; }
+        .db-idle-total { font-size: 20px; font-weight: 800; color: var(--ss-text); line-height: 1.1; }
+        .db-gap { display: inline-block; font-size: 11px; font-weight: 600; background: var(--ss-surface-2); border: 1px solid var(--ss-border); border-radius: 6px; padding: 2px 7px; margin: 1px 4px 1px 0; white-space: nowrap; }
         .db-unit-ic { width: 32px; height: 32px; border-radius: 8px; background: var(--ss-surface-2); color: var(--ss-muted); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .db-unit-name { font-weight: 600; color: var(--ss-text); }
         .db-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
@@ -180,6 +191,126 @@
         .bd-modal-table { width: 100%; font-size: 13px; }
         .bd-modal-table th { color: var(--ss-muted); font-weight: 600; padding: 8px; border-bottom: 1px solid var(--ss-border); }
         .bd-modal-table td { padding: 9px 8px; border-bottom: 1px solid var(--ss-border); vertical-align: top; color: var(--ss-text-2); }
+
+        /* =====================================================================
+           Polish pass: quiet white surfaces, hairline borders, one soft shadow,
+           clear type hierarchy, and a gentle hover highlight on every section
+           (same idea as the sidebar: a light tint, never a jump).
+           ===================================================================== */
+        .db {
+            --db-line: color-mix(in srgb, var(--ss-border) 85%, transparent);
+            --db-shadow: 0 1px 2px rgba(15, 42, 67, 0.04), 0 2px 8px rgba(15, 42, 67, 0.04);
+            --db-shadow-hover: 0 2px 4px rgba(15, 42, 67, 0.05), 0 8px 24px rgba(15, 42, 67, 0.08);
+            --db-hover-bg: color-mix(in srgb, var(--ss-primary) 4.5%, var(--ss-surface));
+            --db-hover-line: color-mix(in srgb, var(--ss-primary) 32%, var(--ss-border));
+            --db-ease: cubic-bezier(.2, .7, .2, 1);
+            font-variant-numeric: tabular-nums;
+        }
+        .db-greet { font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
+        .db-greet-sub { font-size: 13.5px; }
+        .db-clock { border-color: var(--db-line); box-shadow: var(--db-shadow); border-radius: 14px; }
+        .db-month-label { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+        .db-month select { width: 160px; border-radius: 9px; border-color: var(--db-line); box-shadow: none; font-weight: 500; }
+
+        /* KPI tiles: white, colour lives only in the icon */
+        .db-kpis { gap: 12px; }
+        .db-kpi {
+            background: var(--ss-surface); border: 1px solid var(--db-line); border-radius: 16px; box-shadow: var(--db-shadow);
+            padding: 16px 18px; min-height: 100px; gap: 14px;
+            transition: background-color .2s var(--db-ease), border-color .2s var(--db-ease), box-shadow .2s var(--db-ease), transform .2s var(--db-ease);
+        }
+        a.db-kpi:hover { transform: translateY(-1px); background: var(--db-hover-bg); border-color: var(--db-hover-line); box-shadow: var(--db-shadow-hover); }
+        a.db-kpi:focus-visible { outline: 2px solid var(--db-hover-line); outline-offset: 2px; }
+        .db-kpi-icon { width: 44px; height: 44px; border-radius: 12px; background: color-mix(in srgb, var(--kpi) 11%, transparent); }
+        .db-kpi-icon svg { width: 21px; height: 21px; }
+        .db-kpi-label { font-size: 12.5px; font-weight: 500; color: var(--ss-muted); }
+        .db-kpi-num { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin: 1px 0 2px; }
+        .db-kpi-trend { font-size: 11.5px; font-weight: 500; }
+        .db-kpi.priority { border: 1px solid color-mix(in srgb, var(--ss-red) 45%, var(--ss-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ss-red) 9%, transparent), var(--db-shadow); }
+        a.db-kpi.priority:hover { border-color: var(--ss-red); background: color-mix(in srgb, var(--ss-red) 3%, var(--ss-surface)); }
+        .db-flag { border-radius: 6px; font-size: 9px; letter-spacing: .08em; padding: 2px 7px; box-shadow: 0 2px 6px rgba(214, 69, 69, .25); }
+
+        /* section cards */
+        .db-card {
+            border: 1px solid var(--db-line); border-radius: 18px; box-shadow: var(--db-shadow); padding: 20px 22px;
+            transition: background-color .2s var(--db-ease), border-color .2s var(--db-ease), box-shadow .2s var(--db-ease);
+        }
+        .db-card:hover { background: var(--db-hover-bg); border-color: var(--db-hover-line); box-shadow: var(--db-shadow-hover); }
+        .db-card-head { margin-bottom: 16px; }
+        .db-card-title { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+        .db-card-link { width: 28px; height: 28px; border-radius: 8px; align-items: center; justify-content: center; transition: background-color .15s, color .15s; }
+        .db-card-link:hover { background: var(--ss-surface-3); }
+
+        /* donut + legend */
+        .db-legend-row { border-bottom: 1px solid var(--db-line); padding: 10px 0; font-size: 13px; }
+        .db-legend-dot { width: 10px; height: 10px; }
+
+        /* engineers */
+        .db-eng { padding: 10px 8px; margin: 0 -8px; border-radius: 12px; transition: background-color .15s; }
+        .db-eng:hover { background: color-mix(in srgb, var(--ss-text) 4%, transparent); }
+        .db-eng img { border: 0; box-shadow: 0 0 0 2px var(--ss-surface), 0 0 0 3px var(--db-line); }
+        .db-eng-bar { height: 6px; background: var(--ss-surface-3); }
+
+        /* calendar */
+        .db-cal-month { font-size: 14px; font-weight: 600; }
+        .db-cal-arrows a, .db-cal-arrows span { border: 0; background: var(--ss-surface-3); }
+        .db-cal th { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+        .db-cal-day { transition: background-color .15s; }
+        .db-cal-day:not(.out):not(.today):hover { background: var(--ss-surface-3); }
+
+        /* live activity: tiles without borders, table header without a box */
+        .db-live-stats { gap: 10px; }
+        .db-live-stat, .db-live-type { border: 0; background: color-mix(in srgb, var(--ss-text) 3.5%, transparent); border-radius: 14px; transition: background-color .15s; }
+        .db-live-stat:hover, .db-live-type:hover { background: color-mix(in srgb, var(--ss-text) 6%, transparent); }
+        .db-live-icon { width: 40px; height: 40px; border-radius: 12px; }
+        .db-live-label { font-weight: 500; color: var(--ss-muted); }
+        .db-live-num { font-weight: 700; letter-spacing: -.02em; }
+        .db-live-table thead th { background: transparent; border-bottom: 1px solid var(--db-line); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 8px 10px; }
+        .db-live-table thead th:first-child, .db-live-table thead th:last-child { border-radius: 0; }
+        .db-live-table tbody td { border-bottom: 1px solid var(--db-line); transition: background-color .15s; }
+        .db-live-table tbody tr:hover td { background: color-mix(in srgb, var(--ss-text) 3%, transparent); }
+        .db-live-table tbody tr.db-row-done td { background: color-mix(in srgb, var(--ss-text) 6%, transparent); }
+        .db-live-table tbody tr.db-row-done:hover td { background: color-mix(in srgb, var(--ss-text) 8%, transparent); }
+        .db-unit-ic { border-radius: 10px; background: color-mix(in srgb, var(--ss-text) 4%, transparent); }
+        .db-type-pill, .db-status { font-weight: 600; letter-spacing: .01em; }
+        .db-idle-head { border-top-color: var(--db-line); }
+        .db-gap { border: 0; background: color-mix(in srgb, var(--ss-text) 5%, transparent); }
+
+        /* breakdown summary */
+        .db-total-chip { border-radius: 20px; font-weight: 600; font-size: 12px; padding: 4px 12px; }
+        .db-bd-tools select { border-radius: 9px; border-color: var(--db-line); }
+        .db-chart-plot { background-image: linear-gradient(to top, var(--db-line) 1px, transparent 1px); }
+
+        /* KPI tiles: soft tint of their own colour, refined and consistent */
+        .db-kpi {
+            background: color-mix(in srgb, var(--kpi) 5.5%, var(--ss-surface));
+            border-color: color-mix(in srgb, var(--kpi) 16%, var(--ss-border));
+        }
+        a.db-kpi:hover {
+            background: color-mix(in srgb, var(--kpi) 9%, var(--ss-surface));
+            border-color: color-mix(in srgb, var(--kpi) 38%, var(--ss-border));
+        }
+        .db-kpi-icon { background: color-mix(in srgb, var(--kpi) 14%, var(--ss-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi) 12%, transparent); }
+        .db-kpi.priority { background: color-mix(in srgb, var(--ss-red) 6%, var(--ss-surface)); }
+
+        /* every card fills its row: content uses the free space, footers sit on the bottom edge */
+        .db-card { display: flex; flex-direction: column; }
+        .db-fill { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+        .db-fill-top { justify-content: flex-start; }
+        .db-card-foot { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--db-line); display: flex; }
+        .db-card-foot-col { flex-direction: column; gap: 12px; }
+        .db-foot-stat { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .db-foot-stat + .db-foot-stat { padding-left: 14px; border-left: 1px solid var(--db-line); margin-left: 14px; }
+        .db-foot-stat span { font-size: 11.5px; color: var(--ss-muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .db-foot-stat strong { font-size: 18px; font-weight: 700; color: var(--ss-text); letter-spacing: -.01em; line-height: 1.2; }
+        .db-share { display: flex; height: 8px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--ss-surface-3); }
+        .db-share span { display: block; height: 100%; }
+        .db-chart { flex: 1 1 auto; height: auto; min-height: 240px; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .db-kpi, .db-card, .db-eng, .db-live-stat, .db-live-type { transition: none; }
+            a.db-kpi:hover { transform: none; }
+        }
     </style>
 
     <div class="db">
@@ -211,7 +342,7 @@
 
         {{-- KPI cards --}}
         <div class="db-kpis">
-            <a href="{{ route('admin.contracts.index', ['view' => 'grid']) }}" class="db-kpi" style="--kpi:#2E86DE;">
+            <a href="{{ route('admin.contracts.index', ['view' => 'grid']) }}" class="db-kpi" style="--kpi:#3B6FD8;">
                 <div class="db-kpi-icon"><x-ui-icon name="building" size="24" /></div>
                 <div class="db-kpi-body">
                     <div class="db-kpi-label">Total Projects</div>
@@ -219,7 +350,7 @@
                     <div class="db-kpi-trend {{ $kpi['projects_new'] ? '' : 'muted' }}"><x-ui-icon name="arrow-up" size="13" stroke="2.4" /> {{ $kpi['projects_new'] }} this month</div>
                 </div>
             </a>
-            <a href="{{ route('admin.contracts.index') }}" class="db-kpi" style="--kpi:#1E9E74;">
+            <a href="{{ route('admin.contracts.index') }}" class="db-kpi" style="--kpi:#139A7B;">
                 <div class="db-kpi-icon"><x-ui-icon name="layers" size="24" /></div>
                 <div class="db-kpi-body">
                     <div class="db-kpi-label">Total Units</div>
@@ -227,7 +358,7 @@
                     <div class="db-kpi-trend {{ $kpi['units_new'] ? '' : 'muted' }}"><x-ui-icon name="arrow-up" size="13" stroke="2.4" /> {{ $kpi['units_new'] }} this month</div>
                 </div>
             </a>
-            <a href="{{ route('admin.job-types.breakdown', ['month' => $monthStart->month, 'year' => $monthStart->year]) }}" class="db-kpi" style="--kpi:#7B4FD6;">
+            <a href="{{ route('admin.job-types.breakdown', ['month' => $monthStart->month, 'year' => $monthStart->year]) }}" class="db-kpi" style="--kpi:#6B57D2;">
                 <div class="db-kpi-icon"><x-ui-icon name="activity" size="24" /></div>
                 <div class="db-kpi-body">
                     <div class="db-kpi-label">Breakdown</div>
@@ -242,7 +373,7 @@
                     @endif
                 </div>
             </a>
-            <a href="{{ route('admin.shutdown-units.index') }}" class="db-kpi {{ $kpi['shutdown'] > 0 ? 'priority' : '' }}" style="--kpi:#D64545;"
+            <a href="{{ route('admin.shutdown-units.index') }}" class="db-kpi {{ $kpi['shutdown'] > 0 ? 'priority' : '' }}" style="--kpi:#D9484A;"
                 title="Click to see every elevator that is currently shut down">
                 <div class="db-kpi-icon"><x-ui-icon name="alert" size="24" /></div>
                 @if ($kpi['shutdown'] > 0)<span class="db-flag">PRIORITY</span>@endif
@@ -252,7 +383,7 @@
                     <div class="db-kpi-trend {{ $kpi['shutdown'] > 0 ? 'bad' : 'muted' }}">{{ $kpi['shutdown'] > 0 ? 'view the list' : 'all working' }}</div>
                 </div>
             </a>
-            <a href="{{ route('admin.job-types.casual-job') }}" class="db-kpi" style="--kpi:#E08A00;">
+            <a href="{{ route('admin.job-types.casual-job') }}" class="db-kpi" style="--kpi:#D9822B;">
                 <div class="db-kpi-icon"><x-ui-icon name="wrench" size="24" /></div>
                 <div class="db-kpi-body">
                     <div class="db-kpi-label">Casual Jobs</div>
@@ -260,7 +391,7 @@
                     <div class="db-kpi-trend muted">pending / in progress</div>
                 </div>
             </a>
-            <a href="{{ route('admin.job-types.repair', ['month' => $monthStart->month, 'year' => $monthStart->year, 'status' => 'completed']) }}" class="db-kpi" style="--kpi:#9B59B6;">
+            <a href="{{ route('admin.job-types.repair', ['month' => $monthStart->month, 'year' => $monthStart->year, 'status' => 'completed']) }}" class="db-kpi" style="--kpi:#1489A8;">
                 <div class="db-kpi-icon"><x-ui-icon name="settings" size="24" /></div>
                 <div class="db-kpi-body">
                     <div class="db-kpi-label">Repair</div>
@@ -285,8 +416,9 @@
                         <a href="{{ route('admin.contracts.index') }}" class="db-card-link" aria-label="Open master list"><x-ui-icon name="chevron-right" size="18" /></a>
                     </div>
                     @if ($unitTypes->isEmpty())
-                        <p class="text-muted small mb-0">No units yet.</p>
+                        <div class="db-fill"><p class="text-muted small mb-0">No units yet.</p></div>
                     @else
+                        <div class="db-fill">
                         <div class="db-donut-wrap">
                             <div class="db-donut">
                                 <svg viewBox="0 0 42 42" aria-hidden="true">
@@ -313,6 +445,16 @@
                                 @endforeach
                             </div>
                         </div>
+                        </div>
+                        @php
+                            $working = max(0, $kpi['units'] - $kpi['shutdown']);
+                            $workingPct = $kpi['units'] ? round($working / $kpi['units'] * 100) : 0;
+                        @endphp
+                        <div class="db-card-foot">
+                            <div class="db-foot-stat"><span>Working</span><strong>{{ number_format($working) }}</strong></div>
+                            <div class="db-foot-stat"><span>Shut down</span><strong class="{{ $kpi['shutdown'] ? 'text-danger' : '' }}">{{ $kpi['shutdown'] }}</strong></div>
+                            <div class="db-foot-stat"><span>Availability</span><strong>{{ $workingPct }}%</strong></div>
+                        </div>
                     @endif
                 </div>
             </div>
@@ -323,6 +465,7 @@
                         <p class="db-card-title">Units by Engineer</p>
                         <a href="{{ route('admin.team.index') }}" class="db-card-link" aria-label="Open team"><x-ui-icon name="chevron-right" size="18" /></a>
                     </div>
+                    <div class="db-fill">
                     @forelse ($unitsByEngineer as $engineer)
                         @php $color = $engineerColors[$loop->index % count($engineerColors)]; @endphp
                         <div class="db-eng">
@@ -338,6 +481,26 @@
                     @empty
                         <p class="text-muted small mb-0">No units assigned to engineers yet.</p>
                     @endforelse
+                    </div>
+                    @if ($unitsByEngineer->isNotEmpty())
+                        @php
+                            $assignedUnits = (int) $unitsByEngineer->whereNotNull('id')->sum('total');
+                            $engineerCount = $unitsByEngineer->whereNotNull('id')->count();
+                            $shareTotal = max(1, (int) $unitsByEngineer->sum('total'));
+                        @endphp
+                        <div class="db-card-foot db-card-foot-col">
+                            <div class="db-share" aria-hidden="true">
+                                @foreach ($unitsByEngineer as $engineer)
+                                    <span style="width: {{ $engineer->total / $shareTotal * 100 }}%; background: {{ $engineerColors[$loop->index % count($engineerColors)] }};" title="{{ $engineer->name }}: {{ $engineer->total }}"></span>
+                                @endforeach
+                            </div>
+                            <div class="d-flex">
+                                <div class="db-foot-stat"><span>Engineers</span><strong>{{ $engineerCount }}</strong></div>
+                                <div class="db-foot-stat"><span>Units assigned</span><strong>{{ number_format($assignedUnits) }}</strong></div>
+                                <div class="db-foot-stat"><span>Avg per engineer</span><strong>{{ $engineerCount ? round($assignedUnits / $engineerCount) : 0 }}</strong></div>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -447,9 +610,9 @@
                                 @endforeach
                             </div>
                         </div>
-                        <div class="db-sub mt-2">Breakdowns per day, coloured by cause — click a bar for that day's details.</div>
+                        <div class="db-sub mt-3">Breakdowns per day, coloured by cause — click a bar for that day's details.</div>
                     @else
-                        <div class="text-center py-5">
+                        <div class="db-fill text-center py-5">
                             <div class="db-unit-ic mx-auto mb-2" style="width:48px;height:48px;border-radius:50%;"><x-ui-icon name="check-circle" size="24" /></div>
                             <p class="mb-0" style="color: var(--ss-muted);">No breakdowns recorded in {{ $monthStart->format('F Y') }}.</p>
                         </div>

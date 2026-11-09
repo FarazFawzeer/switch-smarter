@@ -212,6 +212,7 @@
                     <select name="elevators[__INDEX__][unit_type]" class="form-select" required>
                         <option value="Elevator" selected>Elevator</option>
                         <option value="Escalator">Escalator</option>
+                        <option value="Travelator">Travelator</option>
                         <option value="Dumbwaiter">Dumbwaiter</option>
                     </select>
                 </div>

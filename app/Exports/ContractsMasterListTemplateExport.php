@@ -53,6 +53,10 @@ class ContractsMasterListTemplateExport implements FromArray, WithHeadings, With
                 'City Tower', 'Residential', 'Colombo 05', '2026-02-01', '2027-02-01',
                 'RT-02', 'Nimal Fernando', 'CT-B-01', 'SL3', 'Escalator', 'Passenger', '0.5 m/s', '', 'Otis', 'Gen2',
             ],
+            [
+                'City Tower', 'Residential', 'Colombo 05', '2026-02-01', '2027-02-01',
+                'RT-02', 'Nimal Fernando', 'CT-B-02', 'TR1', 'Travelator', 'Passenger', '0.5 m/s', '', 'Otis', 'Gen2',
+            ],
         ];
     }
 

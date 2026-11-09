@@ -7,6 +7,35 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ElevatorUnit extends Model
 {
+    /** Equipment categories (Rev 8 adds Travelator). */
+    public const UNIT_TYPES = ['Elevator', 'Escalator', 'Travelator', 'Dumbwaiter'];
+
+    /** Other spellings seen in import sheets → the correct type. */
+    public const UNIT_TYPE_ALIASES = [
+        'lift' => 'Elevator',
+        'travellator' => 'Travelator',
+        'travolator' => 'Travelator',
+        'moving walk' => 'Travelator',
+        'moving walkway' => 'Travelator',
+        'dumb waiter' => 'Dumbwaiter',
+    ];
+
+    /** Map a typed / imported value to a known unit type (null if unknown). */
+    public static function normalizeUnitType(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+        foreach (self::UNIT_TYPES as $type) {
+            if (strcasecmp($type, $value) === 0) {
+                return $type;
+            }
+        }
+
+        return self::UNIT_TYPE_ALIASES[strtolower($value)] ?? null;
+    }
+
     protected $fillable = [
         'contract_id',
         'identification_no',

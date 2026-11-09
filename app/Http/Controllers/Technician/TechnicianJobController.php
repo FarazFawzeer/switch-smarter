@@ -385,7 +385,7 @@ class TechnicianJobController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'start_photo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'start_photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'latitude'    => ['required', 'numeric', 'between:-90,90'],
             'longitude'   => ['required', 'numeric', 'between:-180,180'],
         ], [
@@ -428,6 +428,22 @@ class TechnicianJobController extends Controller
             return response()->json(['success' => false, 'errors' => ['general' => ['This activity is already completed and can no longer be edited.']]], 422);
         }
 
+        // A breakdown can't be saved without its main details (cause + description) —
+        // a half-empty breakdown record is useless to the office.
+        if ($job->job_type === 'breakdown') {
+            $validator = Validator::make($request->all(), [
+                'breakdown_cause' => [$job->parent_job_id ? 'nullable' : 'required', 'string', 'in:' . implode(',', self::BREAKDOWN_CAUSES)],
+                'description'     => ['required', 'string', 'max:1000'],
+            ], [
+                'breakdown_cause.required' => 'Select the breakdown cause before saving.',
+                'description.required'     => 'Describe the issue before saving.',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+            }
+        }
+
         $job->update($this->extractActivityFields($request, $job->job_type) + ['status' => 'on_hold']);
 
         return response()->json(['success' => true, 'message' => 'Saved as draft. You can complete this later.']);
@@ -452,7 +468,7 @@ class TechnicianJobController extends Controller
         }
 
         $rules = array_merge($this->activityValidationRules($job->job_type, (bool) $job->parent_job_id), [
-            'completion_photo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'completion_photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'signature'        => ['required', 'string', 'regex:#^data:image/png;base64,[A-Za-z0-9+/=]+$#', 'max:2000000'],
             'latitude'         => ['required', 'numeric', 'between:-90,90'],
             'longitude'        => ['required', 'numeric', 'between:-180,180'],
@@ -746,10 +762,8 @@ class TechnicianJobController extends Controller
 
         $otHours = 0;
         if ($technician->shift) {
-            $shiftEnd = Carbon::parse($time->toDateString() . ' ' . $technician->shift->end_time);
-            if ($technician->shift->end_time < $technician->shift->start_time) {
-                $shiftEnd->addDay();
-            }
+            // shift end for the shift the day STARTED in (correct for overnight shifts)
+            $shiftEnd = $technician->shift->endFor($attendance->check_in_time ?? $time);
             if ($time->gt($shiftEnd)) {
                 $otHours = round($shiftEnd->diffInMinutes($time) / 60, 2);
             }

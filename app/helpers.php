@@ -30,3 +30,20 @@ if (! function_exists('user_avatar')) {
         return str_starts_with($path, 'uploads/') ? asset($path) : storage_asset($path);
     }
 }
+if (! function_exists('qty')) {
+    /** Stock quantity without needless decimals: 5.00 → "5", 2.50 → "2.5". */
+    function qty($value): string
+    {
+        $formatted = number_format((float) $value, 2, '.', ',');
+
+        return str_contains($formatted, '.') ? rtrim(rtrim($formatted, '0'), '.') : $formatted;
+    }
+}
+
+if (! function_exists('money')) {
+    /** Amount in QAR with 2 decimals. */
+    function money($value): string
+    {
+        return 'QAR ' . number_format((float) $value, 2);
+    }
+}

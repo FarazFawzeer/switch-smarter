@@ -26,7 +26,7 @@
             </select>
             @if($searchAllMonths)
                 <span class="small fw-semibold" style="color:#2E5AAC;">
-                    Searching all months for "{{ request('search') }}" — clear the search to go back to the selected month.
+                    Showing matches from all months — clear the column filters to go back to {{ \Illuminate\Support\Carbon::create()->month($month)->format('F') }} {{ $year }}.
                 </span>
             @else
                 <span class="text-muted small">Showing {{ strtolower($label) }} records reported this month.</span>
@@ -125,7 +125,7 @@
                     </div>
                     <div>
                         <div class="fw-bold fs-20">{{ $summary->on_hold ?? 0 }}</div>
-                        <div class="small text-muted">On Hold</div>
+                        <div class="small text-muted">Work Saved</div>
                     </div>
                 </div>
             </div>
@@ -133,68 +133,36 @@
     @endif
 </div>
 
-{{-- Filters --}}
-<div class="card jt-card mb-3">
-    <div class="card-body">
-        <form method="GET" action="{{ route($routeName) }}" id="filterForm" class="row g-2 align-items-end">
-            <input type="hidden" name="month" value="{{ $month }}">
-            <input type="hidden" name="year" value="{{ $year }}">
+{{-- Filters live in the column headings; this form just carries them --}}
+@php
+    $statusOptions = ['completed' => 'Completed', 'in_progress' => 'In Progress', 'pending' => 'Pending', 'overdue' => 'Overdue', 'on_hold' => 'Work Saved'];
+    $engineerOptions = $engineers->pluck('name', 'id')->all();
+    $technicianOptions = $technicians->mapWithKeys(fn ($t) => [$t->id => $t->name . ($t->employee_id ? ' (' . $t->employee_id . ')' : '')])->all();
+    $routeOptions = $routes->pluck('route_no', 'id')->all();
+    $causeOptions = array_combine(\App\Http\Controllers\Technician\TechnicianJobController::BREAKDOWN_CAUSES, \App\Http\Controllers\Technician\TechnicianJobController::BREAKDOWN_CAUSES);
+@endphp
+<form method="GET" action="{{ route($routeName) }}" id="filterForm">
+    <input type="hidden" name="month" value="{{ $month }}">
+    <input type="hidden" name="year" value="{{ $year }}">
+    @foreach (['sort', 'dir'] as $keep)
+        @if (request($keep))<input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">@endif
+    @endforeach
+</form>
 
-            <div class="col-auto">
-                <label class="form-label small mb-1">Search</label>
-                <input type="text" name="search" id="searchInput" class="form-control form-control-sm" style="width: 200px;"
-                    placeholder="Job no, unit ID, or project..." value="{{ request('search') }}">
-            </div>
-            <div class="col-auto">
-                <label class="form-label small mb-1">Engineer</label>
-                <select name="engineer_id" class="form-select form-select-sm filter-auto" style="width: 170px;">
-                    <option value="">All Engineers</option>
-                    @foreach($engineers as $engineer)
-                        <option value="{{ $engineer->id }}" {{ request('engineer_id') == $engineer->id ? 'selected' : '' }}>{{ $engineer->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-auto">
-                <label class="form-label small mb-1">Technician</label>
-                <select name="technician_id" class="form-select form-select-sm filter-auto" style="width: 190px;">
-                    <option value="">All Technicians</option>
-                    @foreach($technicians as $technician)
-                        <option value="{{ $technician->id }}" {{ request('technician_id') == $technician->id ? 'selected' : '' }}>
-                            {{ $technician->name }}{{ $technician->employee_id ? ' ('.$technician->employee_id.')' : '' }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-auto">
-                <label class="form-label small mb-1">Route</label>
-                <select name="route_id" class="form-select form-select-sm filter-auto" style="width: 150px;">
-                    <option value="">All Routes</option>
-                    @foreach($routes as $route)
-                        <option value="{{ $route->id }}" {{ request('route_id') == $route->id ? 'selected' : '' }}>{{ $route->route_no }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-auto">
-                <label class="form-label small mb-1">Status</label>
-                <select name="status" class="form-select form-select-sm filter-auto" style="width: 150px;">
-                    <option value="">All Statuses</option>
-                    <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
-                    <option value="in_progress" {{ request('status') == 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                    <option value="overdue" {{ request('status') == 'overdue' ? 'selected' : '' }}>Overdue</option>
-                    <option value="on_hold" {{ request('status') == 'on_hold' ? 'selected' : '' }}>On Hold</option>
-                </select>
-            </div>
-            @if(request()->hasAny(['search', 'engineer_id', 'technician_id', 'route_id', 'status']))
-                <div class="col-auto">
-                    <a href="{{ route($routeName, ['month' => $month, 'year' => $year]) }}" class="btn btn-outline-secondary btn-sm" title="Clear filters">
-                        <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
-                    </a>
-                </div>
-            @endif
-        </form>
-    </div>
-</div>
+<x-active-filters :keep="['month', 'year']" :filters="[
+    'search' => 'Search',
+    'job_no' => 'Job No',
+    'project' => 'Project',
+    'unit' => 'Unit',
+    'cause' => ['Cause', $causeOptions],
+    'route_id' => ['Route', $routeOptions],
+    'engineer_id' => ['Engineer', $engineerOptions],
+    'technician_id' => ['Technician', $technicianOptions],
+    'date_from' => 'From',
+    'date_to' => 'To',
+    'details' => 'Details',
+    'status' => ['Status', $statusOptions],
+]" />
 
 {{-- Job list --}}
 <div class="card jt-card">
@@ -202,21 +170,21 @@
         <table class="jt-table">
             <thead>
                 <tr>
-                    <th>Job No</th>
-                    <th>Project</th>
-                    <th>Unit</th>
+                    <th><x-th-filter label="Job No" name="job_no" placeholder="e.g. BD-2026-00003" /></th>
+                    <th><x-th-filter label="Project" name="project" /></th>
+                    <th><x-th-filter label="Unit" name="unit" placeholder="Unit ID or unit no" /></th>
                     @if($jobType === 'breakdown')
-                        <th>Cause of Breakdown</th>
+                        <th><x-th-filter label="Cause of Breakdown" name="cause" type="select" :options="$causeOptions" /></th>
                     @endif
-                    <th>Route</th>
-                    <th>Engineer</th>
-                    <th>Technician(s)</th>
-                    <th>Reported Date</th>
+                    <th><x-th-filter label="Route" name="route_id" type="select" :options="$routeOptions" /></th>
+                    <th><x-th-filter label="Engineer" name="engineer_id" type="select" :options="$engineerOptions" /></th>
+                    <th><x-th-filter label="Technician(s)" name="technician_id" type="select" :options="$technicianOptions" /></th>
+                    <th><x-th-filter label="Reported Date" type="daterange" from="date_from" to="date_to" sort="date" /></th>
                     @if($jobType === 'casual_job')
                         <th>Cost</th>
                     @endif
-                    <th>{{ $label }} Details</th>
-                    <th>Status</th>
+                    <th><x-th-filter :label="$label . ' Details'" name="details" /></th>
+                    <th><x-th-filter label="Status" name="status" type="select" :options="$statusOptions" /></th>
                     <th class="text-center">Action</th>
                 </tr>
             </thead>
@@ -228,7 +196,7 @@
                             'completed' => ['Completed', '#2E9E5B'],
                             'in_progress' => ['In Progress', '#17A2B8'],
                             'pending' => ['Pending', '#F0A202'],
-                            'on_hold' => ['On Hold', '#8792a2'],
+                            'on_hold' => ['Work Saved', '#7A6FD0'],
                         ];
                         [$statusLabel, $statusColor] = $isOverdue ? ['Overdue', '#D64545'] : ($statusMap[$job->status] ?? [ucfirst($job->status), '#8792a2']);
                     @endphp
@@ -286,8 +254,9 @@
                             </span>
                         </td>
                         <td><span class="jt-pill" style="background:{{ $statusColor }};">{{ $statusLabel }}</span></td>
-                        <td class="text-center">
+                        <td class="text-center text-nowrap">
                             <a href="{{ route('admin.job-types.show', $job->id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                            <x-mark-complete-btn :job="$job" />
                         </td>
                     </tr>
                 @empty
@@ -296,7 +265,7 @@
                             <iconify-icon icon="solar:clipboard-list-outline" style="font-size: 32px; opacity: 0.4;"></iconify-icon>
                             <p class="mb-0 mt-2">
                                 @if($searchAllMonths)
-                                    No {{ strtolower($label) }} record matches "{{ request('search') }}" in any month.
+                                    No {{ strtolower($label) }} record matches these filters in any month.
                                 @else
                                     No {{ strtolower($label) }} records found for this month with the current filters.
                                 @endif
@@ -313,6 +282,8 @@
     {{ $jobs->links() }}
 </div>
 
+@include('admin.partials.timesheet-adjust-script')
+
 <script>
     document.querySelectorAll('.filter-auto').forEach(select => {
         select.addEventListener('change', function() {
@@ -321,11 +292,4 @@
         });
     });
 
-    let searchTimeout;
-    document.getElementById('searchInput').addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            document.getElementById('filterForm').submit();
-        }, 600);
-    });
 </script>

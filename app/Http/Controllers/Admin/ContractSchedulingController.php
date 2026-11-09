@@ -33,8 +33,19 @@ class ContractSchedulingController extends Controller
         $routes = \App\Models\Route::orderBy('route_no')->get();
         $technicians = User::where('type', 'Technician')->select('id', 'name', 'supervisor_id')->orderBy('name')->get();
 
+        // Route first: nothing is listed until a route (or "All routes") is chosen
+        $routeId = $request->input('route_id');
+        $needsRoute = blank($routeId);
+
         if ($view === 'calendar') {
-            return $this->calendarView($request, $engineers, $routes, $technicians, $supervisors);
+            return $this->calendarView($request, $engineers, $routes, $technicians, $supervisors)->with('needsRoute', $needsRoute);
+        }
+
+        if ($needsRoute) {
+            $contracts = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20);
+            $sort = 'project_name';
+            $dir = 'asc';
+            return view('admin.scheduling.index', compact('contracts', 'engineers', 'supervisors', 'technicians', 'routes', 'sort', 'dir', 'view', 'needsRoute'));
         }
 
         // Counts come from SQL sub-queries (no per-contract queries), so the
@@ -55,12 +66,18 @@ class ContractSchedulingController extends Controller
             ])
             ->where('status', 'active');
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('project_name', 'like', "%{$search}%")
-                    ->orWhere('location', 'like', "%{$search}%");
-            });
+        if ($routeId !== 'all') {
+            $query->where('route_id', $routeId);
+        }
+
+        foreach (['search', 'project'] as $param) {
+            if ($request->filled($param)) {
+                $term = $request->input($param);
+                $query->where(function ($q) use ($term) {
+                    $q->where('project_name', 'like', "%{$term}%")
+                        ->orWhere('location', 'like', "%{$term}%");
+                });
+            }
         }
 
         if ($request->filled('engineer_id')) {
@@ -101,7 +118,7 @@ class ContractSchedulingController extends Controller
             return $contract;
         });
 
-        return view('admin.scheduling.index', compact('contracts', 'engineers', 'supervisors', 'technicians', 'sort', 'dir', 'view'));
+        return view('admin.scheduling.index', compact('contracts', 'engineers', 'supervisors', 'technicians', 'routes', 'sort', 'dir', 'view', 'needsRoute'));
     }
 
     /**
@@ -154,8 +171,11 @@ class ContractSchedulingController extends Controller
             ->whereBetween('scheduled_date', [$monthStart, $monthEnd])
             ->with(['unit:id,identification_no,unit_number', 'contract:id,project_name,route_id', 'contract.route:id,route_no', 'technician:id,name']);
 
-        if ($request->filled('route_id')) {
+        if ($request->filled('route_id') && $request->input('route_id') !== 'all') {
             $query->whereHas('contract', fn($q) => $q->where('route_id', $request->input('route_id')));
+        }
+        if (blank($request->input('route_id'))) {
+            $query->whereRaw('1 = 0'); // route first — the calendar stays empty until one is chosen
         }
 
         if ($request->filled('supervisor_id')) {
@@ -166,7 +186,10 @@ class ContractSchedulingController extends Controller
             $query->where('assigned_technician_id', $request->input('technician_id'));
         }
 
-        $jobs = $query->get()->groupBy(fn($job) => $job->scheduled_date->day);
+        $monthJobs = $query->get();
+        $warnings = \App\Services\ScheduleWarnings::forJobs($monthJobs);
+        $monthJobs->each(fn ($job) => $job->warnings = $warnings[$job->id] ?? []);
+        $jobs = $monthJobs->groupBy(fn($job) => $job->scheduled_date->day);
 
         // Build the full 6-row calendar grid, including faded leading/trailing days from adjacent months
         $calendarWeeks = [];
@@ -211,7 +234,7 @@ class ContractSchedulingController extends Controller
         $contract->load('route.users', 'engineer', 'elevatorUnits');
 
         $supervisors = $contract->route ? $contract->route->supervisors() : collect();
-        $technicians = $contract->route ? $contract->route->technicians() : collect();
+        $technicians = $contract->route ? $contract->route->ppmTechnicians() : collect();
 
         $scheduledUnitIds = $this->scheduledUnitIds($contract);
 
@@ -224,7 +247,7 @@ class ContractSchedulingController extends Controller
     public function store(Request $request, Contract $contract)
     {
         $routeSupervisorIds = $contract->route ? $contract->route->supervisors()->pluck('id')->toArray() : [];
-        $routeTechnicianIds = $contract->route ? $contract->route->technicians()->pluck('id')->toArray() : [];
+        $routeTechnicianIds = $contract->route ? $contract->route->ppmTechnicians()->pluck('id')->toArray() : [];
         $contractUnitIds = $contract->elevatorUnits()->pluck('id')->toArray();
         $alreadyScheduledUnitIds = $this->scheduledUnitIds($contract);
 
@@ -308,9 +331,14 @@ class ContractSchedulingController extends Controller
         $technicianName = User::find($technicianId)->name;
         $unitCount = count($unitIds);
 
+        // dates are kept as they are — just tell the scheduler how many land on a holiday / leave day
+        $newJobs = JobRecord::where('contract_id', $contract->id)->where('schedule_batch', $batch)->get(['id', 'scheduled_date', 'assigned_technician_id']);
+        $flagged = count(\App\Services\ScheduleWarnings::forJobs($newJobs));
+        $holidayNote = $flagged ? " {$flagged} visit(s) fall on a holiday or the technician's leave — they are marked with a warning so you can reschedule them." : '';
+
         return response()->json([
             'success'  => true,
-            'message'  => "PPM schedule generated for {$unitCount} unit(s) and assigned to {$technicianName}!",
+            'message'  => "PPM schedule generated for {$unitCount} unit(s) and assigned to {$technicianName}!" . $holidayNote,
             'redirect' => route('admin.scheduling.show', $contract->id),
         ]);
     }
@@ -352,6 +380,7 @@ class ContractSchedulingController extends Controller
         }
 
         $visibleJobs = $query->get();
+        $visitWarnings = \App\Services\ScheduleWarnings::forJobs($visibleJobs);
 
         // ===== Unit overview: aggregate counts via SQL, no per-unit loop =====
         $totalUnits = $contract->elevatorUnits()->count();
@@ -497,7 +526,8 @@ class ContractSchedulingController extends Controller
             'unitStatusCounts',
             'unscheduledCount',
             'batches',
-            'batchPeople'
+            'batchPeople',
+            'visitWarnings'
         ));
     }
 
@@ -566,7 +596,8 @@ class ContractSchedulingController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Visit moved to ' . $newDate->format('d M Y') . '.',
+            'message' => 'Visit moved to ' . $newDate->format('d M Y') . '.'
+                . (($holiday = \App\Models\Holiday::reasonFor($newDate)) ? " Note: that day is a holiday ({$holiday})." : ''),
         ]);
     }
 

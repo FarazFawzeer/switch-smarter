@@ -110,6 +110,43 @@ class ContractController extends Controller
             $query->where('elevator_units.elevator_type', $request->input('elevator_type'));
         }
 
+        // ---- column-heading filters (text = "contains", dates = range) ----
+        $textFilters = [
+            'f_unit'     => ['elevator_units.identification_no'],
+            'f_unit_no'  => ['elevator_units.unit_number'],
+            'f_project'  => ['contracts.project_name'],
+            'f_location' => ['contracts.location'],
+            'f_contract' => ['contracts.contract_number'],
+            'f_speed'    => ['elevator_units.speed'],
+            'f_capacity' => ['elevator_units.capacity'],
+            'f_brand'    => ['elevator_units.brand'],
+            'f_model'    => ['elevator_units.model'],
+        ];
+        foreach ($textFilters as $param => $columns) {
+            if ($request->filled($param)) {
+                $term = trim($request->input($param));
+                $query->where(fn ($q) => collect($columns)->each(fn ($col) => $q->orWhere($col, 'like', "%{$term}%")));
+            }
+        }
+
+        // technician / supervisor are computed columns — filter on the same expressions
+        if ($request->filled('f_technician')) {
+            $query->whereRaw("(SELECT name FROM users WHERE users.id = {$technicianIdSql}) LIKE ?", ['%' . trim($request->input('f_technician')) . '%']);
+        }
+        if ($request->filled('f_supervisor')) {
+            $query->whereRaw("COALESCE((SELECT name FROM users WHERE users.id = contracts.assigned_supervisor_id),
+                (SELECT s.name FROM users t JOIN users s ON s.id = t.supervisor_id WHERE t.id = {$technicianIdSql})) LIKE ?", ['%' . trim($request->input('f_supervisor')) . '%']);
+        }
+
+        foreach (['start' => 'contracts.contract_start_date', 'end' => 'contracts.contract_end_date', 'created' => 'elevator_units.created_at'] as $prefix => $column) {
+            if ($request->filled("{$prefix}_from")) {
+                $query->whereDate($column, '>=', $request->input("{$prefix}_from"));
+            }
+            if ($request->filled("{$prefix}_to")) {
+                $query->whereDate($column, '<=', $request->input("{$prefix}_to"));
+            }
+        }
+
         $sortable = [
             'project_name'         => 'contracts.project_name',
             'project_type'         => 'contracts.project_type',
@@ -147,7 +184,7 @@ class ContractController extends Controller
         $engineers = User::where('type', 'Engineer')->select('id', 'name')->get();
         $routes = \App\Models\Route::orderBy('route_no')->get();
         $projectTypes = ['Residential', 'Commercial', 'Industrial', 'Hospital', 'Hotel', 'Mixed Use'];
-        $unitTypes = ['Elevator', 'Escalator', 'Dumbwaiter'];
+        $unitTypes = \App\Models\ElevatorUnit::UNIT_TYPES;
         $elevatorTypes = ['Passenger', 'Service', 'Freight'];
 
         return view('admin.contracts.index', compact(
@@ -373,13 +410,25 @@ class ContractController extends Controller
         ]);
     }
 
-    public function destroy(Contract $contract)
+    public function destroy(Request $request, Contract $contract)
     {
         if ($this->contractHasWorkHistory($contract->id)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This project already has maintenance work recorded, so it cannot be deleted. Mark it as Cancelled or Expired instead.',
-            ], 422);
+            $isSuperAdmin = Auth::user()->type === 'Super Admin';
+
+            // Super Admin may force it, after typing the project name exactly to confirm
+            $confirmed = $isSuperAdmin && $request->boolean('force')
+                && trim((string) $request->input('confirm_name')) === trim($contract->project_name);
+
+            if (! $confirmed) {
+                return response()->json([
+                    'success'   => false,
+                    'can_force' => $isSuperAdmin,
+                    'project'   => $contract->project_name,
+                    'message'   => $isSuperAdmin
+                        ? 'This project has maintenance work recorded. Deleting it also removes all its units, jobs, timesheet entries and history.'
+                        : 'This project already has maintenance work recorded, so it cannot be deleted. Mark it as Cancelled or Expired instead, or ask a Super Admin.',
+                ], 422);
+            }
         }
 
         $this->deleteContract($contract);
@@ -751,7 +800,7 @@ class ContractController extends Controller
             'elevators.*.unit_number'            => ['nullable', 'string', 'max:50'],
             'elevators.*.speed'                  => ['nullable', 'string', 'max:50'],
             'elevators.*.capacity'               => ['nullable', 'string', 'max:50'],
-            'elevators.*.unit_type'              => ['nullable', Rule::in(['Elevator', 'Escalator', 'Dumbwaiter'])],
+            'elevators.*.unit_type'              => ['nullable', Rule::in(\App\Models\ElevatorUnit::UNIT_TYPES)],
             'elevators.*.elevator_type'          => ['nullable', Rule::in(['Passenger', 'Service', 'Freight'])],
             'elevators.*.brand'                  => ['nullable', 'string', 'max:100'],
             'elevators.*.model'                  => ['nullable', 'string', 'max:100'],

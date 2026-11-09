@@ -47,6 +47,7 @@
                             <option value="">Select Type</option>
                             <option value="Super Admin" {{ old('type') == 'Super Admin' ? 'selected' : '' }}>Super Admin</option>
                             <option value="Admin" {{ old('type') == 'Admin' ? 'selected' : '' }}>Admin</option>
+                            <option value="Storekeeper" {{ old('type') == 'Storekeeper' ? 'selected' : '' }}>Storekeeper (Stores only)</option>
 
                         </select>
                     </div>
